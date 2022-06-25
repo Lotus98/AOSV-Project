@@ -82,6 +82,9 @@ dkms.conf
 .history
 .ionide
 
+### Clangd ###
+compile_commands.json
+
 # End of https://www.toptal.com/developers/gitignore/api/c,visualstudiocode,linux
 
 # modules

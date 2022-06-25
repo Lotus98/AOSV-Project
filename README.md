@@ -1,11 +1,10 @@
 # AOSV Final Project
 _A.Y. 2020/2021_
 
-## Author(s)
+## Author
 
-The author(s) of this project is/are:
-- Name Surname (0123456)
-- Name Surname (0123456)
+The author of this project is:
+- Nalin Dhingra (1967105)
 
 ## Instructions
 
@@ -30,7 +29,7 @@ This repository is already enabled for using [Git LFS](https://git-lfs.github.co
 
 ### Pull Requests
 
-Pull requests for feedback are enabled for this repository, they are described well [here](https://docs.github.com/en/education/manage-coursework-with-github-classroom/leave-feedback-with-pull-requests). In practice you can create a pull request for asking clarifications to me but **you cannot abuse of this feature** and my answers are obviously limited, I cannot provide you code snippets and I cannot do the project for you. The answers to general questions will be made available to everyone in the project track page as F.A.Qs. 
+Pull requests for feedback are enabled for this repository, they are described well [here](https://docs.github.com/en/education/manage-coursework-with-github-classroom/leave-feedback-with-pull-requests). In practice you can create a pull request for asking clarifications to me but **you cannot abuse of this feature** and my answers are obviously limited, I cannot provide you code snippets and I cannot do the project for you. The answers to general questions will be made available to everyone in the project track page as F.A.Qs.
 
 ### Disclaimer
 
