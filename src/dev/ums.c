@@ -1,30 +1,28 @@
 /** @file ums.c
  *  @brief Initialization of LKM.
  *
- *  This file Manages the initialization of the Linux Kernel module
- *  for the UMS driver.
+ *  This file Manages the initialization of the Linux Kernel module for the UMS driver.
  *
  *  @author Nalin Dhingra (Lotus98)
  *  @bug No known bugs.
  */
-#include "ums.h"
+#include <linux/module.h>
+#include <linux/fs.h>
+#include <linux/miscdevice.h>
+#include "shared.h"
+#include "ioctl.h"
 
-static int ums_open(struct inode *inode, struct file *filp)
-{
-        PRINTDBG("The device has been open");
-	return 0;
-}
+static const struct file_operations ums_fops = {
+        .owner = THIS_MODULE,
+        .unlocked_ioctl = ums_ioctl,
+};
 
-static int ums_close(struct inode *inode, struct file *filp)
-{
-        PRINTDBG("The device has been close");
-        return 0;
-}
-
-static long ums_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
-{
-        return 1337;
-}
+static struct miscdevice ums_misc_dev = {
+        .minor = MISC_DYNAMIC_MINOR,
+        .name = DEVICE_NAME,
+        .mode = S_IRUGO | S_IWUGO,
+        .fops = &ums_fops,
+};
 
 static int __init init_umsmodule(void)
 {
@@ -49,3 +47,10 @@ static void __exit exit_umsmodule(void)
 
 module_init(init_umsmodule);
 module_exit(exit_umsmodule);
+
+/// @cond OMIT
+MODULE_AUTHOR("Nalin Dhingra <lotus98@protonmail.com>");
+MODULE_DESCRIPTION("User Mode thread Scheduler (UMS) LKM");
+MODULE_LICENSE("GPL");
+MODULE_VERSION("1.0");
+/// @endcond

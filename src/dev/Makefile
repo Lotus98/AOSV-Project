@@ -1,14 +1,19 @@
-EXTRA_CFLAGS = -Wall -g
+EXTRA_CFLAGS = -Wall
 KDIR = /lib/modules/$(shell uname -r)/build
 PWD = $(shell pwd)
 
 # Comment line to disable debug prints
 DEBUG = y
 
-obj-m += ums.o
+ifeq ($(DEBUG), y)
+	DBG=EXTRA_CFLAGS=-DDEBUG
+endif
+
+obj-m += umsdev.o
+umsdev-objs := ums.o ioctl.o
 
 all:
-	make -C $(KDIR) M=$(PWD) modules
+	make $(DBG) -C $(KDIR) M=$(PWD) $(EXTRA_CFLAGS) modules
 
 .PHONY: clean install
 clean:
