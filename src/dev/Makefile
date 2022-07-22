@@ -15,7 +15,7 @@ umsdev-objs := ums.o ioctl.o
 all:
 	make $(DBG) -C $(KDIR) M=$(PWD) $(EXTRA_CFLAGS) modules
 
-.PHONY: clean install
+.PHONY: clean tidy install uninstall
 clean:
 	rm -rf *.o *~ core .depend *.mod.o .*.cmd *.ko *.mod.c *.mod \
 		.tmp_versions *.markers *.symvers modules.order
@@ -25,4 +25,7 @@ tidy:
 		.tmp_versions *.markers *.symvers modules.order
 
 install:
-	sudo insmod *.ko
+	sudo insmod umsdev.ko
+
+uninstall:
+	sudo rmmod umsdev
