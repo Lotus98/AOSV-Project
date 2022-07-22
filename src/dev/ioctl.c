@@ -9,6 +9,7 @@
  *  @bug No known bugs.
  */
 #include "ioctl.h"
+#include "shared.h"
 
 long ums_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {

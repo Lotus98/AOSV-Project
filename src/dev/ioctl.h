@@ -14,8 +14,10 @@
 #include <linux/file.h>
 #include <linux/ioctl.h>
 #include <linux/sched.h>
-#include "shared.h"
 
+/**
+ *  Command to set a thread to state IDLE, this will avoid the kernel to schedule it.
+ */
 #define WORKER_IDLE _IO(0x1337, 'a')
 
 /**

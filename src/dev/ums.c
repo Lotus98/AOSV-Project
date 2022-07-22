@@ -45,10 +45,10 @@ static void __exit exit_umsmodule(void)
         return;
 }
 
+/// @cond OMIT
 module_init(init_umsmodule);
 module_exit(exit_umsmodule);
 
-/// @cond OMIT
 MODULE_AUTHOR("Nalin Dhingra <lotus98@protonmail.com>");
 MODULE_DESCRIPTION("User Mode thread Scheduler (UMS) LKM");
 MODULE_LICENSE("GPL");
