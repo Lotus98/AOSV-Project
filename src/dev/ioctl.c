@@ -14,7 +14,7 @@
 long ums_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
         switch (cmd) {
-        case WORKER_IDLE:
+        case SET_WORKER_IDLE:
                 __set_current_state(TASK_IDLE);
                 schedule();
                 break;

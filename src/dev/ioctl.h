@@ -15,17 +15,15 @@
 #include <linux/ioctl.h>
 #include <linux/sched.h>
 
-/**
- *  Command to set a thread to state IDLE, this will avoid the kernel to schedule it.
+/** Command to set a thread to state IDLE, this will avoid the kernel to schedule it.
  */
-#define WORKER_IDLE _IO(0x1337, 'a')
+#define SET_WORKER_IDLE _IO(0x1337, 'a')
 
-/**
- *  IOCTL implementation to handle interaction with the LKM.
+/** IOCTL implementation to handle interaction with the LKM.
  *
- *  @param file the file associated with the device fd
- *  @param cmd the command to be executed
- *  @param arg a potential argument needed to execute the wanted command
+ *  @param file: the file associated with the device fd
+ *  @param cmd: the command to be executed
+ *  @param arg: a potential argument needed to execute the wanted command
  *  @return the result of the given command
  */
 long ums_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
