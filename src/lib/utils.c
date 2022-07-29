@@ -6,6 +6,10 @@
  */
 #include "utils.h"
 #include "shared.h"
+#include <pthread.h>
+#include <semaphore.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 int open_device ()
 {
@@ -19,11 +23,9 @@ int open_device ()
         return fd;
 }
 
-void *wrap_routine (void *arg)
+void *worker_wrap_routine (void *arg)
 {
         /*  TODO:
-         *  - Synchronize gettid (maybe with semaphores: semctl)
-         *  - put to sleep thread (IOCTL WORKER_IDLE).
          *  - Any clean up to do after routine is executed
          */
         struct ums_arg *wrap_arg = (struct ums_arg *)arg;
@@ -31,6 +33,11 @@ void *wrap_routine (void *arg)
 
         // Get TID
         thread->tid = gettid();
+        PRINTDBG("Populating tid");
+        if (sem_post(wrap_arg->tid_sem) != 0) {
+                perror("Incrementing semaphore");
+                pthread_exit(NULL);
+        }
 
 
         // Idle

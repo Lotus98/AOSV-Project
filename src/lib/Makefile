@@ -3,9 +3,9 @@ CFLAGS       	= -std=c99 -fPIC -pedantic -Wall -Wextra -Wconversion
 LDFLAGS      	= -shared
 
 # Comment to disable/enable debugging
-# DEBUG = y
+DEBUG = y
 ifeq ($(DEBUG), y)
-	CFLAGS += -O0 -g -D DEBUG
+	CFLAGS += -Og -g -D DEBUG
 else
 	CFLAGS += -O2
 endif

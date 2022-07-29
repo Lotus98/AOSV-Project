@@ -19,7 +19,7 @@
 #define WORKER_IDLE() do                        \
 {                                               \
         ioctl(driver_fd, SET_WORKER_IDLE);      \
-} while(0)
+} while(0);
 
 // Prototypes
 /** @brief Opens the driver's device.
@@ -28,7 +28,7 @@
  */
 int open_device (void);
 
-/** @brief wraps the original ums pthread routine.
+/** @brief wraps the original ums pthread routine for a worker thread.
  *
  *  This function is used to wrap the original ums_thread_create start_routine
  *  to correctly populate the needed data structures and to set the thread into
@@ -36,6 +36,6 @@ int open_device (void);
  *
  *  @param arg: A wrapper argument (of type struct ums_arg) to the original *arg.
  */
-void *wrap_routine (void *arg);
+void *worker_wrap_routine (void *arg);
 
 #endif // !LIB_UTILS_H

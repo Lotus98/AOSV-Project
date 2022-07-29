@@ -16,6 +16,7 @@
 
 // Includes
 #include <asm-generic/errno-base.h>
+#include <semaphore.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -32,9 +33,9 @@
 
 #undef PRINTDBG
 #ifdef DEBUG
-#define PRINTDBG(fmt, args...) fprintf(stderr, fmt "\n", ##args);
+#define PRINTDBG(...) fprintf(stderr, "[DEBUG]" __VA_ARGS__)
 #else
-#define PRINTDBG(fmt, ...)
+#define PRINTDBG(...) do {} while(0)
 #endif // DEBUG
 
 
@@ -55,6 +56,7 @@ struct ums_arg {
         struct ums_thread *ums_thread;
         void *(*ums_routine) (void *); ///< The routine passed to ums_thread_create
         void *arg; ///< The argument passed to ums_thread_create
+        sem_t *tid_sem; ///< Semaphore used to coordinate ums_thread->tid population
 };
 
 // Global variables
