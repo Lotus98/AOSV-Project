@@ -7,6 +7,15 @@
  *  @author Nalin Dhingra (Lotus98)
  *  @bug No known bugs.
  */
+
+/*  TODO:
+ *  - Create data structures to implement workers_list (Maybe copy kernel implementation)
+ *      - (https://www.cs.uic.edu/~hnagaraj/articles/linked-list/)
+ *      - (https://www.cs.uic.edu/~hnagaraj/articles/linked-list/list.h)
+ *
+ *  - Implement ENterUmsSchedulingMode()
+ *
+ */
 #include "ums.h"
 #include "shared.h"
 #include <semaphore.h>
@@ -15,6 +24,10 @@
 
 int ums_init ()
 {
+        /*  TODO:
+         *  - Get the number of available PROCESSORS on the system
+         *  - Initialize bitmap to keep track of used PROCESSORS
+         */
         driver_fd = open_device();
         if (driver_fd < 0) {
                 return FAILURE;
