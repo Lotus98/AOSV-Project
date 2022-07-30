@@ -33,7 +33,7 @@ int ums_thread_create (struct ums_thread *thread,
         thread->tid = -1;
 
         // Initializing the wrapper argument to be passed to worker_wrap_routine
-        wrapper_arg = malloc(sizeof(struct ums_arg));
+        wrapper_arg = malloc(sizeof(*wrapper_arg));
         if (!wrapper_arg) {
                 perror("Allocating struct ums_arg wrapper_arg");
                 return -ENOMEM;
@@ -41,7 +41,7 @@ int ums_thread_create (struct ums_thread *thread,
         wrapper_arg->ums_thread = thread;
         wrapper_arg->ums_routine = start_routine;
         wrapper_arg->arg = arg;
-        wrapper_arg->tid_sem = malloc(sizeof(sem_t));
+        wrapper_arg->tid_sem = malloc(sizeof(*wrapper_arg->tid_sem));
         if (!wrapper_arg->tid_sem) {
                 perror("Allocating sem_t tid_sem");
                 return -ENOMEM;
