@@ -24,6 +24,8 @@
 #include <fcntl.h>
 #include <sched.h>
 #include <stdio.h>
+#include "bitmap.h"
+#include "list.h"
 
 
 // Defines
@@ -40,7 +42,7 @@
 
 
 // IOCTL commands
-#define SET_WORKER_IDLE _IO(0x1337, 'a') ///< Set state of the calling thread to TASK_IDLE
+#define SET_WORKER_IDLE _IO(0x1337, 'a') ///< Set state of the calling thread to TASK_IDLE.
 
 
 // Data structures needed by the lib
@@ -50,16 +52,36 @@ struct ums_thread {
         pid_t tid; ///< The TID of the created thread.
 };
 
-/// Structure used to wrap the arguments of pthread_create within ums_thread_create
+/// Structure used to wrap the arguments of pthread_create within ums_thread_create.
 struct ums_arg {
-        /// The reference to the struct ums_thread corresponding to the thread itself
+        /// The reference to the struct ums_thread corresponding to the thread itself.
         struct ums_thread *ums_thread;
-        void *(*ums_routine) (void *); ///< The routine passed to ums_thread_create
-        void *arg; ///< The argument passed to ums_thread_create
-        sem_t *tid_sem; ///< Semaphore used to coordinate ums_thread->tid population
+        void *(*ums_routine) (void *); ///< The routine passed to ums_thread_create.
+        void *arg; ///< The argument passed to ums_thread_create.
+        sem_t *tid_sem; ///< Semaphore used to coordinate ums_thread->tid population.
 };
+
+/// Structure defining a worker.
+struct ums_worker {
+        struct ums_thread *thread; ///< Corresponding thread.
+        int refcnt; ///< Reference counter. (NOTE: Not yet sure is needed)
+        pthread_rwlock_t rwlock;
+};
+
+typedef struct ums_worker_node {
+        struct ums_worker worker; ///< Worker assigned to the node.
+        struct list_head list; ///< struct list pointers.
+} ums_worker_node_t;
+
+/// Structure used to keep track of the head of a workers_list.
+typedef struct ums_list_head {
+        pthread_rwlock_t rwlock;
+        struct list_head list;
+} ums_list_head_t;
 
 // Global variables
 int driver_fd;
+int nprocs;
+bitmap_t ums_procs;
 
 #endif // !LIB_SHARED_H

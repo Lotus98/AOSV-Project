@@ -9,30 +9,41 @@
  */
 
 /*  TODO:
- *  - Create data structures to implement workers_list (Maybe copy kernel implementation)
- *      - (https://www.cs.uic.edu/~hnagaraj/articles/linked-list/)
- *      - (https://www.cs.uic.edu/~hnagaraj/articles/linked-list/list.h)
- *
- *  - Implement ENterUmsSchedulingMode()
+ *  - Implement EnterUmsSchedulingMode()
  *
  */
 #include "ums.h"
+#include "bitmap.h"
+#include "list.h"
 #include "shared.h"
-#include <semaphore.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 int ums_init ()
 {
-        /*  TODO:
-         *  - Get the number of available PROCESSORS on the system
-         *  - Initialize bitmap to keep track of used PROCESSORS
-         */
+        // Open IOCTL device
         driver_fd = open_device();
         if (driver_fd < 0) {
                 return FAILURE;
         }
+
+        // Configure processors related information
+        nprocs = get_nprocs();
+        ums_procs = DECLARE_BITMAP((unsigned long)nprocs);
+
         return SUCCESS;
+}
+
+void ums_destroy ()
+{
+        // Close IOCTL device
+        close(driver_fd);
+        // Free bitmap
+        free(ums_procs);
+
+        return;
 }
 
 int ums_thread_create (struct ums_thread *thread,
@@ -77,13 +88,57 @@ int ums_thread_create (struct ums_thread *thread,
                 // Abort execution if tid semaphore didn't work
                 abort();
         }
-        PRINTDBG("Tid should be populated");
         // Destroy semaphore (it is not needed anymore)
         if (sem_destroy(wrapper_arg->tid_sem) != 0) {
                 perror("[Main thread] Destroying semaphore");
                 return FAILURE;
         }
         free(wrapper_arg->tid_sem);
+
+        return SUCCESS;
+}
+
+int ums_worker_list_init(ums_list_head_t *head)
+{
+        INIT_LIST_HEAD(&head->list);
+        if (pthread_rwlock_init(&head->rwlock, NULL) != 0) {
+                perror("Creating rwlock for workers list head");
+                return FAILURE;
+        }
+        return SUCCESS;
+}
+
+int ums_worker_list_insert(ums_list_head_t *head, struct ums_thread *thread)
+{
+        ums_worker_node_t *worker_node = malloc(sizeof(*worker_node));
+        if (!worker_node) {
+                perror("Allocating worker");
+                return FAILURE;
+        }
+        worker_node->worker.thread = thread;
+        worker_node->worker.refcnt = 0;
+        if (pthread_rwlock_init(&(worker_node->worker.rwlock), NULL) != 0) {
+                perror("Initializing worker rwlock");
+                free(worker_node);
+                return FAILURE;
+        }
+        // Acquire list rwlock
+        if (pthread_rwlock_wrlock(&head->rwlock) != 0) {
+                perror("Getting head rwlock");
+                pthread_rwlock_destroy(&worker_node->worker.rwlock);
+                free(worker_node);
+                return FAILURE;
+        }
+
+        list_add(&worker_node->list, &head->list);
+
+        // Release list rwlock
+        if (pthread_rwlock_unlock(&head->rwlock) != 0) {
+                perror("Releasing head rwlock");
+                pthread_rwlock_destroy(&worker_node->worker.rwlock);
+                free(worker_node);
+                return FAILURE;
+        }
 
         return SUCCESS;
 }

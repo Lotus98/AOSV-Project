@@ -14,6 +14,7 @@
 // Includes
 #include "shared.h"
 #include "utils.h"
+#include <sys/sysinfo.h>
 
 
 // Prototypes
@@ -28,7 +29,7 @@ int ums_init(void);
  */
 void ums_destroy(void);
 
-/** @brief Wrapper function to pthread_create.
+/** @brief Wrapper to pthread_create.
  *
  *  This function is used as a wrapper to pthread_create, to instantiate a ums thread.
  *
@@ -43,5 +44,21 @@ int ums_thread_create (struct ums_thread *thread,
                        void *(*start_routine) (void *),
                        void *arg);
 
+/** @brief Initializes the worker list.
+ *
+ *  @param head: The head of the list.
+ *  @return SUCCESS
+ *  @return FAILURE
+ */
+int ums_worker_list_init(ums_list_head_t *head);
+
+/** @brief Inserts a ums_thread into a workers list.
+ *
+ *  @param head: The head of the list.
+ *  @param thread: The thread to be insert as a worker.
+ *  @return SUCCESS
+ *  @return FAILURE
+ */
+int ums_worker_list_insert(ums_list_head_t *head, struct ums_thread *thread);
 
 #endif // !LIB_UMS_H

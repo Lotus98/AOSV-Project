@@ -33,7 +33,6 @@ void *worker_wrap_routine (void *arg)
 
         // Get TID
         thread->tid = gettid();
-        PRINTDBG("Populating tid");
         if (sem_post(wrap_arg->tid_sem) != 0) {
                 perror("Incrementing semaphore");
                 pthread_exit(NULL);
