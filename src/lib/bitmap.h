@@ -24,9 +24,11 @@ typedef unsigned long *bitmap_t;
 
 /** @brief Creates a bitmap_t of n bits.
  *
+ *  Returns a pointer to an array that needs to be freed, when not needed anymore.
+ *
  *  @param n: Number of bits needed in the bitmap.
  */
-#define CREATE_BITMAP(n) ( calloc(BITS_TO_LONG(n), sizeof(unsigned long)) )
+#define DECLARE_BITMAP(n) ( calloc(BITS_TO_LONG(n), sizeof(unsigned long)) )
 
 /** @brief Sets the i^th bit of the given bitmap.
  *
