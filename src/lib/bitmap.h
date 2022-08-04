@@ -35,20 +35,20 @@ typedef unsigned long *bitmap_t;
  *  @param b: The target bitmap.
  *  @param i: The bit to be set.
  */
-#define SET_BIT(b, i) ( b[i / BITS_PER_LONG] |= 1 << (i & BITS_PER_LONG-1) )
+#define SET_BIT(b, i) ( b[i / BITS_PER_LONG] |= (unsigned long)(1 << (i & (BITS_PER_LONG-1))) )
 
 /** @brief Unsets the i^th bit of the given bitmap.
  *
  *  @param b: The target bitmap.
  *  @param i: The bit to be unset.
  */
-#define UNSET_BIT(b, i) ( b[i / BITS_PER_LONG] &= ~(1 << (i & BITS_PER_LONG-1)) )
+#define UNSET_BIT(b, i) ( b[i / BITS_PER_LONG] &= ~(1 << (i & (BITS_PER_LONG-1))) )
 
 /** @brief Gets the i^th bit of the given bitmap.
  *
  *  @param b: The target bitmap.
  *  @param i: The bit to be returned.
  */
-#define GET_BIT(b, i) ( b[i / BITS_PER_LONG] & (1 << (i & BITS_PER_LONG-1)) ? 1 : 0 )
+#define GET_BIT(b, i) ( b[i / BITS_PER_LONG] & (unsigned long)(1 << (i & (BITS_PER_LONG-1))) ? 1 : 0 )
 
 #endif // !LIB_BITMAP_H
