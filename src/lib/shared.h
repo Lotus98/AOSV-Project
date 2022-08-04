@@ -52,28 +52,28 @@ struct ums_thread {
         pid_t tid; ///< The TID of the created thread.
 };
 
-/// Structure used to wrap the arguments of pthread_create within ums_thread_create.
+/// Structure used to wrap the arguments of pthread_create within ums_worker_create.
 struct ums_arg {
-        /// The reference to the struct ums_thread corresponding to the thread itself.
+        /// The reference to the struct ums_thread corresponding to the worker.
         struct ums_thread *ums_thread;
-        void *(*ums_routine) (void *); ///< The routine passed to ums_thread_create.
-        void *arg; ///< The argument passed to ums_thread_create.
+        void *(*ums_routine) (void *); ///< The routine passed to ums_worker_create.
+        void *arg; ///< The argument passed to ums_worker_create.
         sem_t *tid_sem; ///< Semaphore used to coordinate ums_thread->tid population.
 };
 
 /// Structure defining a worker.
 struct ums_worker {
-        struct ums_thread *thread; ///< Corresponding thread.
-        int refcnt; ///< Reference counter. (NOTE: Not yet sure is needed)
+        struct ums_thread thread; ///< Corresponding thread.
+        int refcnt; ///< Reference counter, used to keep track of how many lists contain this worker.
         pthread_rwlock_t rwlock;
 };
 
 typedef struct ums_worker_node {
-        struct ums_worker worker; ///< Worker assigned to the node.
+        struct ums_worker *worker; ///< Worker assigned to the node.
         struct list_head list; ///< struct list pointers.
 } ums_worker_node_t;
 
-/// Structure used to keep track of the head of a workers_list.
+/// Structure used to keep track of the head of a worker list.
 typedef struct ums_list_head {
         pthread_rwlock_t rwlock;
         struct list_head list;

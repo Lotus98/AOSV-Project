@@ -31,16 +31,16 @@ void ums_destroy(void);
 
 /** @brief Wrapper to pthread_create.
  *
- *  This function is used as a wrapper to pthread_create, to instantiate a ums thread.
+ *  This function is used as a wrapper for pthread_create, to instantiate a ums worker.
  *
- *  @param thread: A pointer to a struct ums_thread that will be instantiated.
+ *  @param worker: A pointer to a struct ums_worker that will be initialized.
  *  @param start_routine: The routine that will be executed by the UMS thread.
  *  @param arg: The argument needed by the UMS thread routine.
  *
- *  @return 0 if thread creation is successful.
- *  @return <0 if thread creation failed.
+ *  @return 0 if worker creation is successful.
+ *  @return <0 if worker creation failed.
  */
-int ums_thread_create (struct ums_thread *thread,
+int ums_worker_create (struct ums_worker *worker,
                        void *(*start_routine) (void *),
                        void *arg);
 
@@ -52,13 +52,13 @@ int ums_thread_create (struct ums_thread *thread,
  */
 int ums_worker_list_init(ums_list_head_t *head);
 
-/** @brief Inserts a ums_thread into a workers list.
+/** @brief Inserts a ums_worker into a worker list.
  *
  *  @param head: The head of the list.
- *  @param thread: The thread to be insert as a worker.
+ *  @param worker: The worker to be inserted as a node.
  *  @return SUCCESS
  *  @return FAILURE
  */
-int ums_worker_list_insert(ums_list_head_t *head, struct ums_thread *thread);
+int ums_worker_list_insert(ums_list_head_t *head, struct ums_worker *worker);
 
 #endif // !LIB_UMS_H

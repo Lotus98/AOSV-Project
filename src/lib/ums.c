@@ -46,13 +46,22 @@ void ums_destroy ()
         return;
 }
 
-int ums_thread_create (struct ums_thread *thread,
+int ums_worker_create (struct ums_worker *worker,
                        void *(*start_routine) (void *),
                        void *arg)
 {
         struct ums_arg *wrapper_arg;
+        struct ums_thread *thread;
         int ret_pthread;
 
+        // Initialize worker
+        worker->refcnt = 0;
+        if (pthread_rwlock_init(&(worker->rwlock), NULL) != 0) {
+                perror("Initializing worker rwlock");
+                return FAILURE;
+        }
+
+        thread = &worker->thread;
         // Tid will be populated by worker_wrap_routine
         thread->tid = -1;
 
@@ -102,30 +111,23 @@ int ums_worker_list_init(ums_list_head_t *head)
 {
         INIT_LIST_HEAD(&head->list);
         if (pthread_rwlock_init(&head->rwlock, NULL) != 0) {
-                perror("Creating rwlock for workers list head");
+                perror("Creating rwlock for worker list head");
                 return FAILURE;
         }
         return SUCCESS;
 }
 
-int ums_worker_list_insert(ums_list_head_t *head, struct ums_thread *thread)
+int ums_worker_list_insert(ums_list_head_t *head, struct ums_worker *worker)
 {
         ums_worker_node_t *worker_node = malloc(sizeof(*worker_node));
         if (!worker_node) {
                 perror("Allocating worker");
                 return FAILURE;
         }
-        worker_node->worker.thread = thread;
-        worker_node->worker.refcnt = 0;
-        if (pthread_rwlock_init(&(worker_node->worker.rwlock), NULL) != 0) {
-                perror("Initializing worker rwlock");
-                free(worker_node);
-                return FAILURE;
-        }
+        worker_node->worker = worker;
         // Acquire list rwlock
         if (pthread_rwlock_wrlock(&head->rwlock) != 0) {
                 perror("Getting head rwlock");
-                pthread_rwlock_destroy(&worker_node->worker.rwlock);
                 free(worker_node);
                 return FAILURE;
         }
@@ -135,7 +137,6 @@ int ums_worker_list_insert(ums_list_head_t *head, struct ums_thread *thread)
         // Release list rwlock
         if (pthread_rwlock_unlock(&head->rwlock) != 0) {
                 perror("Releasing head rwlock");
-                pthread_rwlock_destroy(&worker_node->worker.rwlock);
                 free(worker_node);
                 return FAILURE;
         }
