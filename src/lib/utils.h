@@ -18,7 +18,7 @@
 /// Changes the state of the current thread to TASK_IDLE to avoid being scheduled.
 #define WORKER_IDLE() do                        \
 {                                               \
-        ioctl(driver_fd, SET_WORKER_IDLE);      \
+        ioctl(dev_fd, SET_WORKER_IDLE);         \
 } while(0);
 
 // Prototypes
@@ -34,8 +34,19 @@ int open_device (void);
  *  to correctly populate the needed data structures and to set the thread into
  *  an IDLE state, ready to be scheduled.
  *
- *  @param arg: A wrapper argument (of type struct ums_arg) to the original *arg.
+ *  @param arg: A wrapper argument (of type struct ums_worker_arg) to the original *arg.
  */
 void *worker_wrap_routine (void *arg);
+
+/** TODO
+ */
+void *sched_wrap_routine (void *arg);
+
+/** @brief Finds the first occurence of a bit set to 0 in a bitmap.
+ *  @param map: The target bitmap.
+ *  @param size: The size of the bitmap
+ *  @return int: The index (starting from 0) of the wanted bit or -1 if none were found.
+ */
+int find_next_zero_bit(unsigned long *map, int size);
 
 #endif // !LIB_UTILS_H

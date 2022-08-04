@@ -14,7 +14,6 @@
 // Includes
 #include "shared.h"
 #include "utils.h"
-#include <sys/sysinfo.h>
 
 
 // Prototypes
@@ -25,8 +24,7 @@
  */
 int ums_init(void);
 
-/** @brief Cleans up all UMS data
- */
+/// Cleans up all UMS data
 void ums_destroy(void);
 
 /** @brief Wrapper to pthread_create.
@@ -60,5 +58,16 @@ int ums_worker_list_init(ums_list_head_t *head);
  *  @return FAILURE
  */
 int ums_worker_list_insert(ums_list_head_t *head, struct ums_worker *worker);
+
+/** @brief Initializes the scheduler thread with its relative worker list.
+ *
+ *  This function creates a scheduler thread and assigns it to the first non used
+ *  CPU for this process's UMS. It also assigns the given worker_list to that scheduler.
+ *  It then registers the thread and its worker list to the LKM.
+ *
+ *  @param scheduler_routine: The scheduler component that will be executed by the scheduler thread.
+ *  @param worker_list: The worker list to be assigned to the scheduler.
+ */
+int EnterUmsSchedulingMode(void (*scheduler_routine)(), ums_list_head_t *worker_list);
 
 #endif // !LIB_UMS_H

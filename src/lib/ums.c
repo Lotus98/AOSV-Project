@@ -10,28 +10,45 @@
 
 /*  TODO:
  *  - Implement EnterUmsSchedulingMode()
- *
  */
-#include "ums.h"
-#include "bitmap.h"
-#include "list.h"
 #include "shared.h"
+#include "bitmap.h"
+#include "ums.h"
+#include "utils.h"
+
 #include <pthread.h>
+#include <semaphore.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/sysinfo.h>
 #include <unistd.h>
 
 int ums_init ()
 {
+        /*  TODO:
+         *  - Initialize PID in LKM with IOCTL.
+         */
+
         // Open IOCTL device
-        driver_fd = open_device();
-        if (driver_fd < 0) {
+        dev_fd = open_device();
+        if (dev_fd < 0) {
                 return FAILURE;
         }
 
         // Configure processors related information
-        nprocs = get_nprocs();
-        ums_procs = DECLARE_BITMAP((unsigned long)nprocs);
+        ncpus = get_nprocs();
+        cpus_map = DECLARE_BITMAP((unsigned long)ncpus);
+        if (!cpus_map) {
+                perror("Allocating cpus_map during initialization");
+                return FAILURE;
+        }
+        ums_schedulers = calloc((unsigned long)ncpus, sizeof(ums_schedulers));
+        if (!ums_schedulers) {
+                perror("Allocating ums_schedulers during initialization");
+                free(cpus_map);
+                close(dev_fd);
+                return FAILURE;
+        }
 
         return SUCCESS;
 }
@@ -39,9 +56,16 @@ int ums_init ()
 void ums_destroy ()
 {
         // Close IOCTL device
-        close(driver_fd);
+        close(dev_fd);
         // Free bitmap
-        free(ums_procs);
+        free(cpus_map);
+        // Free ums_schedulers
+        for (int i = 0; i < ncpus; i++) {
+                if (ums_schedulers[i]) {
+                        free(ums_schedulers[i]);
+                }
+        }
+        free(ums_schedulers);
 
         return;
 }
@@ -50,7 +74,7 @@ int ums_worker_create (struct ums_worker *worker,
                        void *(*start_routine) (void *),
                        void *arg)
 {
-        struct ums_arg *wrapper_arg;
+        struct ums_worker_arg *wrapper_arg;
         struct ums_thread *thread;
         int ret_pthread;
 
@@ -68,7 +92,7 @@ int ums_worker_create (struct ums_worker *worker,
         // Initializing the wrapper argument to be passed to worker_wrap_routine
         wrapper_arg = malloc(sizeof(*wrapper_arg));
         if (!wrapper_arg) {
-                perror("Allocating struct ums_arg wrapper_arg");
+                perror("Allocating struct ums_worker_arg wrapper_arg");
                 return -ENOMEM;
         }
         wrapper_arg->ums_thread = thread;
@@ -77,16 +101,20 @@ int ums_worker_create (struct ums_worker *worker,
         wrapper_arg->tid_sem = malloc(sizeof(*wrapper_arg->tid_sem));
         if (!wrapper_arg->tid_sem) {
                 perror("Allocating sem_t tid_sem");
+                free(wrapper_arg);
                 return -ENOMEM;
         }
         if (sem_init(wrapper_arg->tid_sem, 0, 0) != 0) {
                 perror("Initializing semaphore");
+                free(wrapper_arg->tid_sem);
+                free(wrapper_arg);
                 return FAILURE;
         }
 
         ret_pthread = pthread_create(&thread->pthread, NULL, worker_wrap_routine, wrapper_arg);
         if (ret_pthread != 0) {
                 perror("Creating pthread");
+                free(wrapper_arg->tid_sem);
                 free(wrapper_arg);
                 return ret_pthread;
         }
@@ -100,7 +128,6 @@ int ums_worker_create (struct ums_worker *worker,
         // Destroy semaphore (it is not needed anymore)
         if (sem_destroy(wrapper_arg->tid_sem) != 0) {
                 perror("[Main thread] Destroying semaphore");
-                return FAILURE;
         }
         free(wrapper_arg->tid_sem);
 
@@ -140,6 +167,99 @@ int ums_worker_list_insert(ums_list_head_t *head, struct ums_worker *worker)
                 free(worker_node);
                 return FAILURE;
         }
+
+        return SUCCESS;
+}
+
+int EnterUmsSchedulingMode(void (*scheduler_routine)(), ums_list_head_t *worker_list)
+{
+        /*  TODO:
+         *  - Create wrapper for pthread_create for scheduler.
+         *      - Register scheduler and worker list in LKM
+         */
+        int cpuid, ret_pthread;
+        struct ums_sched_arg *sched_arg;
+
+        cpuid = find_next_zero_bit(cpus_map, ncpus);
+        if (cpuid < 0) {
+                fprintf(stderr, "[Error] UMSLIB: Cannot run a new scheduler, all cpus are allocated\n");
+                return FAILURE;
+        }
+        SET_BIT(cpus_map, cpuid);
+        ums_schedulers[cpuid] = malloc(sizeof(**ums_schedulers));
+        if (!ums_schedulers[cpuid]) {
+                perror("Allocating struct ums_sched for requested scheduler");
+                return FAILURE;
+        }
+        ums_schedulers[cpuid]->cpuid = cpuid;
+        ums_schedulers[cpuid]->ums_thread = malloc(sizeof(struct ums_thread));
+        if (!ums_schedulers[cpuid]->ums_thread) {
+                perror("Allocating struct ums_thread for scheduler");
+                free(ums_schedulers[cpuid]);
+                UNSET_BIT(cpus_map, cpuid);
+                return FAILURE;
+        }
+        ums_schedulers[cpuid]->worker_list = worker_list;
+        // Initilized by the wrapper
+        ums_schedulers[cpuid]->ums_thread->tid = -1;
+
+        // Initialize wrapper arg struct
+        sched_arg = malloc(sizeof(*sched_arg));
+        if (!sched_arg) {
+                perror("Allocating sched_arg wrapper arguments");
+                free(ums_schedulers[cpuid]->ums_thread);
+                free(ums_schedulers[cpuid]);
+                UNSET_BIT(cpus_map, cpuid);
+                return FAILURE;
+        }
+        sched_arg->ums_thread = ums_schedulers[cpuid]->ums_thread;
+        sched_arg->sched_routine = scheduler_routine;
+        sched_arg->cpuid = cpuid;
+        sched_arg->sem = malloc(sizeof(*sched_arg->sem));
+        if (!sched_arg->sem) {
+                perror("Initializing semaphore");
+                free(sched_arg);
+                free(ums_schedulers[cpuid]->ums_thread);
+                free(ums_schedulers[cpuid]);
+                UNSET_BIT(cpus_map, cpuid);
+                return FAILURE;
+        }
+        if (sem_init(sched_arg->sem, 0, 0) != 0) {
+                perror("Initializing semaphore");
+                free(sched_arg->sem);
+                free(sched_arg);
+                free(ums_schedulers[cpuid]->ums_thread);
+                free(ums_schedulers[cpuid]);
+                UNSET_BIT(cpus_map, cpuid);
+                return FAILURE;
+        }
+
+        // Create scheduler thread.
+        ret_pthread = pthread_create(&sched_arg->ums_thread->pthread, NULL, sched_wrap_routine, NULL);
+        if (ret_pthread != 0) {
+                perror("Creating pthread");
+                free(sched_arg->sem);
+                free(sched_arg);
+                free(ums_schedulers[cpuid]->ums_thread);
+                free(ums_schedulers[cpuid]);
+                UNSET_BIT(cpus_map, cpuid);
+                return ret_pthread;
+        }
+        // Wait for the ums_thread->tid to be populated
+        if (sem_wait(sched_arg->sem) != 0) {
+                perror("[Main thread] Waiting on semaphore");
+                abort();
+        }
+        // Destroy semaphore (it is not needed anymore)
+        if (sem_destroy(sched_arg->sem) != 0) {
+                perror("[Main thread] Destroying semaphore");
+        }
+        free(sched_arg->sem);
+
+        /*  TODO:
+         *  - Register worker_list into LKM, having care it is bound to the scheduler.
+         */
+
 
         return SUCCESS;
 }

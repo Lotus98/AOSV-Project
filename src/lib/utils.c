@@ -6,10 +6,30 @@
  */
 #include "utils.h"
 #include "shared.h"
-#include <pthread.h>
-#include <semaphore.h>
+#include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+static void bind_to_cpu(int cpuid) {
+        cpu_set_t *cpusetp;
+        size_t size;
+
+        cpusetp = CPU_ALLOC(ncpus);
+        if (!cpusetp) {
+                perror("Allocating cpu set");
+                exit(EXIT_FAILURE);
+        }
+        size = CPU_ALLOC_SIZE(ncpus);
+        CPU_ZERO_S(size, cpusetp);
+        CPU_SET_S(cpuid, size, cpusetp);
+
+        if (sched_setaffinity(0, size, cpusetp) != 0) {
+                perror("Setting affinity for scheduler thread");
+                exit(EXIT_FAILURE);
+        }
+
+        CPU_FREE(cpusetp);
+}
 
 int open_device ()
 {
@@ -28,7 +48,7 @@ void *worker_wrap_routine (void *arg)
         /*  TODO:
          *  - Any clean up to do after routine is executed
          */
-        struct ums_arg *wrap_arg = (struct ums_arg *)arg;
+        struct ums_worker_arg *wrap_arg = (struct ums_worker_arg *)arg;
         struct ums_thread *thread = wrap_arg->ums_thread;
 
         // Get TID
@@ -49,4 +69,47 @@ void *worker_wrap_routine (void *arg)
         free(arg);
 
         return NULL;
+}
+
+void *sched_wrap_routine (void *arg)
+{
+        struct ums_sched_arg *wrap_arg = (struct ums_sched_arg *)arg;
+
+        // Get TID
+        wrap_arg->ums_thread->tid = gettid();
+        if (sem_post(wrap_arg->sem) != 0) {
+                perror("Incrementing semaphore");
+                pthread_exit(NULL);
+        }
+
+
+        if (sem_wait(wrap_arg->sem) != 0) {
+                perror("[Scheduler thread] Waiting on semaphore");
+                abort();
+        }
+
+        // Bind thread to CPU
+        bind_to_cpu(wrap_arg->cpuid);
+
+        // Register scheduler into LKM TODO
+
+        // Execute scheduler
+        wrap_arg->sched_routine();
+
+        // Cleanup
+        free(arg);
+
+        return NULL;
+}
+
+int find_next_zero_bit(unsigned long *map, int size)
+{
+        int index = 0;
+        for (index=0; index<size; index++) {
+                if (GET_BIT(map, index) == 0) break;
+        }
+        if (index == size) {
+                index = -1;
+        }
+        return index;
 }

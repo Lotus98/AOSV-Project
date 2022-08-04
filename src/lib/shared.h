@@ -18,6 +18,7 @@
 #include <asm-generic/errno-base.h>
 #include <semaphore.h>
 #include <pthread.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
@@ -53,12 +54,19 @@ struct ums_thread {
 };
 
 /// Structure used to wrap the arguments of pthread_create within ums_worker_create.
-struct ums_arg {
+struct ums_worker_arg {
         /// The reference to the struct ums_thread corresponding to the worker.
         struct ums_thread *ums_thread;
         void *(*ums_routine) (void *); ///< The routine passed to ums_worker_create.
         void *arg; ///< The argument passed to ums_worker_create.
         sem_t *tid_sem; ///< Semaphore used to coordinate ums_thread->tid population.
+};
+
+struct ums_sched_arg {
+        struct ums_thread *ums_thread;
+        void (*sched_routine) (void); ///< The scheduler function.
+        int cpuid; ///< The CPU to which the thread will be bound.
+        sem_t *sem; ///< Semaphore used to coordinate the main thread with the scheduler thread.
 };
 
 /// Structure defining a worker.
@@ -79,9 +87,17 @@ typedef struct ums_list_head {
         struct list_head list;
 } ums_list_head_t;
 
+/// Structure to define a scheduler thread and its context.
+struct ums_sched {
+        struct ums_thread *ums_thread; ///< The ums_thread related to the scheduler.
+        int cpuid; ///< The id of the assigned CPU.
+        ums_list_head_t *worker_list;
+};
+
 // Global variables
-int driver_fd;
-int nprocs;
-bitmap_t ums_procs;
+int dev_fd; ///< The file descriptor of "/dev/umsdev"
+int ncpus; ///< The number of available CPUs in the system
+bitmap_t cpus_map; ///< A bitmap representing the state of the CPUs in the UMS context of this process.
+struct ums_sched **ums_schedulers; ///< An array of pointers to the schedulers in use.
 
 #endif // !LIB_SHARED_H
