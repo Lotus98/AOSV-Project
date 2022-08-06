@@ -100,3 +100,6 @@ src/**/.*
 
 # todo files
 todo.txt
+
+# Executables directory
+bin/
