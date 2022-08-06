@@ -9,6 +9,7 @@
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/miscdevice.h>
+#include "linux/hashtable.h"
 #include "shared.h"
 #include "ioctl.h"
 
@@ -34,6 +35,12 @@ static int __init init_umsmodule(void)
                 return error;
         }
         pr_info(LOG_MSG "Misc device registered successfully!\n");
+
+        // Get number of online CPUs.
+        ncpus = num_online_cpus();
+
+        // Initialize ums_procs hashtable
+        hash_init(ums_procs);
 
         return 0;
 }

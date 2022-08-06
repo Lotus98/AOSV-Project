@@ -14,10 +14,14 @@
 #include <linux/file.h>
 #include <linux/ioctl.h>
 #include <linux/sched.h>
+#include <linux/slab.h>
+#include <linux/gfp.h>
 
-/** Command to set a thread to state IDLE, this will avoid the kernel to schedule it.
- */
+/// Command to set a thread to state IDLE, this will avoid the kernel to schedule it.
 #define SET_WORKER_IDLE _IO(0x1337, 'a')
+/// Command to register a process to be in UMS mode.
+#define REGISTER_PROC _IO(0x1337, 'b')
+
 
 /** IOCTL implementation to handle interaction with the LKM.
  *

@@ -10,10 +10,10 @@ ifeq ($(DEBUG), y)
 endif
 
 obj-m += umsdev.o
-umsdev-objs := ums.o ioctl.o
+umsdev-objs := ums.o ioctl.o utils.o shared.o
 
 all:
-	make $(DBG) -C $(KDIR) M=$(PWD) $(EXTRA_CFLAGS) modules
+	$(MAKE) $(DBG) -C $(KDIR) M=$(PWD) $(EXTRA_CFLAGS) modules
 
 .PHONY: clean tidy install uninstall
 clean:
