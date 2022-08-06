@@ -97,3 +97,6 @@ src/**/.*
 *.order
 *.symvers
 *.out
+
+# todo files
+todo.txt
