@@ -44,6 +44,7 @@
 
 // IOCTL commands
 #define SET_WORKER_IDLE _IO(0x1337, 'a') ///< Set state of the calling thread to TASK_IDLE.
+#define REGISTER_PROC _IO(0x1337, 'b') ///< Register process to be in UMS mode.
 
 
 // Data structures needed by the lib

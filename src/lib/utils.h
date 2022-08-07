@@ -28,7 +28,7 @@
  */
 int open_device (void);
 
-/** @brief wraps the original ums pthread routine for a worker thread.
+/** @brief Wraps the original ums pthread routine for a worker thread.
  *
  *  This function is used to wrap the original ums_worker_create start_routine
  *  to correctly populate the needed data structures and to set the thread into
@@ -38,7 +38,8 @@ int open_device (void);
  */
 void *worker_wrap_routine (void *arg);
 
-/** TODO
+/** @brief Wraps the original scheduler function.
+ *  @param arg: Contains a struct ums_sched_arg, to perform scheduler initialization.
  */
 void *sched_wrap_routine (void *arg);
 

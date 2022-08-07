@@ -20,15 +20,12 @@
 #include <semaphore.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/ioctl.h>
 #include <sys/sysinfo.h>
 #include <unistd.h>
 
 int ums_init ()
 {
-        /*  TODO:
-         *  - Initialize PID in LKM with IOCTL.
-         */
-
         // Open IOCTL device
         dev_fd = open_device();
         if (dev_fd < 0) {
@@ -45,6 +42,14 @@ int ums_init ()
         ums_schedulers = calloc((unsigned long)ncpus, sizeof(ums_schedulers));
         if (!ums_schedulers) {
                 perror("Allocating ums_schedulers during initialization");
+                free(cpus_map);
+                close(dev_fd);
+                return FAILURE;
+        }
+
+        // Register process TGID in UMS mode.
+        if (ioctl(dev_fd, REGISTER_PROC) != SUCCESS) {
+                perror("Couldn't register process to UMS mode.");
                 free(cpus_map);
                 close(dev_fd);
                 return FAILURE;
