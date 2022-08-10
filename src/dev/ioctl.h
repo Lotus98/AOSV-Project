@@ -21,6 +21,8 @@
 #define SET_WORKER_IDLE _IO(0x1337, 'a')
 /// Command to register a process to be in UMS mode.
 #define REGISTER_PROC _IO(0x1337, 'b')
+/// Command to unregister a process that is in UMS mode.
+#define UNREGISTER_PROC _IO(0x1337, 'c')
 
 
 /** IOCTL implementation to handle interaction with the LKM.

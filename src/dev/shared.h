@@ -7,10 +7,6 @@
  *  @author Nalin Dhingra (Lotus98)
  *  @bug No known bugs.
  */
-/*  TODO:
- *  4. Create command to register a scheduler
- */
-
 #ifndef DEV_SHARED_H
 #define DEV_SHARED_H
 
@@ -47,13 +43,13 @@ struct ums_proc {
         pid_t pid; ///< The process PID.
         struct ums_sched **schedulers; ///< An array of pointers representing all the active scheduler threads.
         struct hlist_node node; ///< Node for the bucket in the processes hashtable.
-        /** An hashtable containing all the workers registered by a process.
+        /*  An hashtable containing all the workers registered by a process.
          *  This is used to allow faster and more efficient lookup of shared workers.
          *  Naturally, this is less memory efficient, but not so bad, since it means
          *  we are just holding a double copy of a ums_worker_node_t which is relatively
          *  small.
          */
-        DECLARE_HASHTABLE(workers, HBITS);
+        DECLARE_HASHTABLE(workers, HBITS); ///< Hashtable of all workers registered by a process.
         rwlock_t hash_lock; ///< lock used to access the workers hashtable.
 };
 

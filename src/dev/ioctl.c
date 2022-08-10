@@ -15,6 +15,7 @@
 long ums_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
         pid_t pid;
+        long retval;
 
         switch (cmd) {
         case SET_WORKER_IDLE:
@@ -23,9 +24,18 @@ long ums_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
                 break;
         case REGISTER_PROC:
                 pid = current->tgid;
-                if (register_ums_process(pid) != SUCCESS) {
+                retval = register_ums_process(pid);
+                if ( retval != SUCCESS) {
                         pr_err(LOG_MSG "Couldn't register process PID: %d\n", pid);
-                        return FAILURE;
+                        return retval;
+                }
+                break;
+        case UNREGISTER_PROC:
+                pid = current->tgid;
+                retval = unregister_ums_process(pid);
+                if ( retval != SUCCESS) {
+                        pr_err(LOG_MSG "Couldn't unregister process PID: %d\n", pid);
+                        return retval;
                 }
                 break;
         default:
