@@ -1,4 +1,4 @@
-EXTRA_CFLAGS = -Wall
+ccflags-y := -Wall -std=gnu99
 KDIR = /lib/modules/$(shell uname -r)/build
 PWD = $(shell pwd)
 
@@ -6,14 +6,14 @@ PWD = $(shell pwd)
 DEBUG = y
 
 ifeq ($(DEBUG), y)
-	DBG=EXTRA_CFLAGS=-DDEBUG
+	ccflags-y += -DDEBUG
 endif
 
 obj-m += umsdev.o
 umsdev-objs := ums.o ioctl.o utils.o shared.o
 
 all:
-	$(MAKE) $(DBG) -C $(KDIR) M=$(PWD) $(EXTRA_CFLAGS) modules
+	$(MAKE) -C $(KDIR) M=$(PWD) modules
 
 .PHONY: clean tidy install uninstall
 clean:
