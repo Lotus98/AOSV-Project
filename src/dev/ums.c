@@ -39,9 +39,6 @@ static int __init init_umsmodule(void)
         // Get number of online CPUs.
         ncpus = num_online_cpus();
 
-        // Initialize ums_procs hashtable
-        hash_init(ums_procs);
-
         return 0;
 }
 
