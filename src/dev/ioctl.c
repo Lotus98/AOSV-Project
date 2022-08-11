@@ -8,20 +8,29 @@
  *  @author Nalin Dhingra (Lotus98)
  *  @bug No known bugs.
  */
+#include "asm-generic/errno-base.h"
 #include "shared.h"
 #include "ioctl.h"
 #include "utils.h"
 
 long ums_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
-        pid_t pid;
+        pid_t pid, tid;
         long retval;
 
         switch (cmd) {
-        case SET_WORKER_IDLE:
-                __set_current_state(TASK_IDLE);
-                schedule();
-                break;
+                case INIT_WORKER:
+                        // Initialize worker for UMS process.
+                        retval = init_worker_node();
+                        if ( retval != SUCCESS) {
+                                tid = current->pid;
+                                pr_err(LOG_MSG "Couldn't Initialize worker with TID: %d\n", tid);
+                                return retval;
+                        }
+                        // Change state of worker task so it is not scheduled by the kernel
+                        __set_current_state(TASK_IDLE);
+                        schedule();
+                        break;
         case REGISTER_PROC:
                 pid = current->tgid;
                 retval = register_ums_process(pid);

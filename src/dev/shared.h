@@ -65,13 +65,13 @@ struct ums_sched {
 struct ums_worker {
         struct task_struct *task; ///< The task_struct of the thread.
         unsigned long state; ///< The current executing state of the worker.
-        // Maybe in future save the value of tid here to make it quicker to access.
         struct kref refcnt; ///< Reference counter for the worker.
 };
 
 typedef struct ums_worker_node {
-        struct ums_worker *worker; ///< We use a pointer to abstract.
-        struct hlist_node node; ///< node of the hashtable's bucket.
+        struct ums_worker *worker;
+        pid_t tid; ///< The key for hashtables. Provides also quicker access to worker TID.
+        struct hlist_node node; ///< The node of the hashtable's bucket.
 } ums_worker_node_t;
 
 // Global variables

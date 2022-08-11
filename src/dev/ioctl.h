@@ -18,7 +18,7 @@
 #include <linux/gfp.h>
 
 /// Command to set a thread to state IDLE, this will avoid the kernel to schedule it.
-#define SET_WORKER_IDLE _IO(0x1337, 'a')
+#define INIT_WORKER _IO(0x1337, 'a')
 /// Command to register a process to be in UMS mode.
 #define REGISTER_PROC _IO(0x1337, 'b')
 /// Command to unregister a process that is in UMS mode.

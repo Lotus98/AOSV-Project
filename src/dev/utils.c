@@ -7,16 +7,24 @@
 #include "utils.h"
 #include "asm-generic/errno-base.h"
 #include "linux/fs.h"
+#include "linux/gfp.h"
 #include "linux/hashtable.h"
 #include "linux/kernel.h"
 #include "linux/kref.h"
+#include "linux/pid.h"
+#include "linux/sched.h"
 #include "linux/types.h"
 #include "shared.h"
 #include <linux/slab.h>
 
-int register_ums_process (pid_t pid)
+long register_ums_process (pid_t pid)
 {
         struct ums_proc *process;
+
+        // Look if process is already registered
+        process = find_ums_proc(pid);
+        if (process)
+                return -EEXIST;
 
         // Initialize struct ums_proc
         process = kmalloc(sizeof(*process), GFP_KERNEL);
@@ -41,21 +49,17 @@ int register_ums_process (pid_t pid)
         return SUCCESS;
 }
 
-int unregister_ums_process (pid_t pid)
+long unregister_ums_process (pid_t pid)
 {
         struct ums_proc *process;
         ums_worker_node_t *worker_node;
         struct hlist_node *tmp;
         int bkt;
 
-        // Find the corresponding structure (Maybe move it into a new function)
-        hash_for_each_possible(ums_procs, process, node, pid) {
-                if (process->pid == pid)
-                        break;
-        }
-        if (!process) { // The process is not registered
+        // Find the struct ums_proc of the PID
+        process = find_ums_proc(pid);
+        if (!process) // The process is not registered
                 return -ESRCH;
-        }
 
         // Remove node from the hashtable
         hash_del(&process->node);
@@ -85,6 +89,63 @@ int unregister_ums_process (pid_t pid)
         kfree(process);
 
         return SUCCESS;
+}
+
+long init_worker_node (void)
+{
+        struct task_struct *task;
+        struct ums_proc *process;
+        struct ums_worker *worker;
+        ums_worker_node_t *worker_node;
+        pid_t pid, tid;
+
+        tid = current->pid;
+        pid = current->tgid;
+        // Get the corresponding struct ums_proc
+        process = find_ums_proc(pid);
+        if (!process) // The process was not Initialized.
+                return -ESRCH;
+
+        // Initialize struct ums_worker
+        worker = kmalloc(sizeof(*worker), GFP_KERNEL);
+        if (!worker)
+                return -ENOMEM;
+        task = pid_task(find_vpid(tid), PIDTYPE_PID);
+        worker->task = task;
+        worker->state = UMS_WORKER_IDLE;
+        kref_init(&worker->refcnt);
+
+        // Initialize worker node
+        worker_node = kmalloc(sizeof(*worker_node), GFP_KERNEL);
+        if (!worker_node)
+                return -ENOMEM;
+        worker_node->worker = worker;
+        worker_node->tid = tid;
+
+        /* Get the write lock to insert worker node. Doubtfully an interrupt will
+         * need access to the hashtable so we can lock with interrupts enabled
+         * without fear of a deadlock.
+         */
+        write_lock(&process->hash_lock);
+        hash_add(process->workers, &worker_node->node, tid);
+        write_unlock(&process->hash_lock);
+
+        return SUCCESS;
+}
+
+struct ums_proc *find_ums_proc (pid_t pid)
+{
+        struct ums_proc *process;
+
+        // Find the corresponding structure
+        hash_for_each_possible(ums_procs, process, node, pid) {
+                if (process->pid == pid)
+                        break;
+        }
+        if (!process) // The process is not registered
+                return NULL;
+
+        return process;
 }
 
 void worker_release (struct kref *refcnt)
