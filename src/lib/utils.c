@@ -59,8 +59,8 @@ void *worker_wrap_routine (void *arg)
         }
 
 
-        // Idle
-        WORKER_IDLE();
+        // Initialize worker and set it to IDLE state.
+        ioctl(dev_fd, INIT_WORKER);
 
         // Execute routine
         wrap_arg->ums_routine(wrap_arg->arg);

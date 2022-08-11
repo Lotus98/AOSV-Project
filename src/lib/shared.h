@@ -43,7 +43,7 @@
 
 
 // IOCTL commands
-#define SET_WORKER_IDLE _IO(0x1337, 'a') ///< Set state of the calling thread to TASK_IDLE.
+#define INIT_WORKER _IO(0x1337, 'a') ///< Set state of the calling thread to TASK_IDLE.
 #define REGISTER_PROC _IO(0x1337, 'b') ///< Register a process to be in UMS mode.
 #define UNREGISTER_PROC _IO(0x1337, 'c') ///< Unregister a process that is in UMS mode.
 

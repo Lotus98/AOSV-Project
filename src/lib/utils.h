@@ -15,11 +15,7 @@
 #include <sys/ioctl.h>
 
 // Macros
-/// Changes the state of the current thread to TASK_IDLE to avoid being scheduled.
-#define WORKER_IDLE() do                        \
-{                                               \
-        ioctl(dev_fd, SET_WORKER_IDLE);         \
-} while(0);
+
 
 // Prototypes
 /** @brief Opens the driver's device.
