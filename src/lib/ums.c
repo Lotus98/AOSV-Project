@@ -8,9 +8,6 @@
  *  @bug No known bugs.
  */
 
-/*  TODO:
- *  - Implement EnterUmsSchedulingMode()
- */
 #include "shared.h"
 #include "bitmap.h"
 #include "ums.h"
@@ -71,6 +68,9 @@ void ums_destroy ()
                 }
         }
         free(ums_schedulers);
+
+        // Unregister ums process
+        ioctl(dev_fd, UNREGISTER_PROC);
 
         return;
 }

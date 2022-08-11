@@ -17,14 +17,21 @@
 
 
 // Prototypes
-/** @brief Initializes the driver interaction from Userspace.
+/** @brief Initializes UMS data for a the current process.
+ *
+ *  This function is to be called before starting a UMS session.
  *
  *  @return 0 if successful.
  *  @return <0 if failed.
  */
 int ums_init(void);
 
-/// Cleans up all UMS data
+/** @brief Cleans up all UMS data created by a process.
+ *
+ *  This function is to be called when a process that has been using UMS is exiting, or
+ *  when all of his UMS threads are completed. Calling this function when a thread is still
+ *  running may result in undesired behaviour such as a kernel panic.
+ */
 void ums_destroy(void);
 
 /** @brief Wrapper to pthread_create.
