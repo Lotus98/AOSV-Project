@@ -29,8 +29,9 @@
 #define HBITS 8 ///< "bits" used by a general hashtable (8 = 256 entries).
 
 // Worker states
-#define UMS_WORKER_RUNNING      0
-#define UMS_WORKER_IDLE         1
+#define WORKER_RUNNING          0
+#define WORKER_IDLE             1
+#define WORKER_TERMINATED       2
 
 // #ifndef PRINTDBG
 #define PRINTDBG(fmt, args...) pr_debug(LOG_MSG fmt, ##args)
@@ -56,7 +57,7 @@ struct ums_proc {
 /// Defines a scheduler thread.
 struct ums_sched {
         struct task_struct *sched_task; ///< The task_struct of the scheduler thread.
-        struct ums_worker *current_worker; ///< The current worker.
+        struct ums_worker *current_worker; ///< The worker currently running on the scheduler context, NULL if none.
         DECLARE_HASHTABLE(worker_list, HBITS); ///< The completion list (implemented as an hashtable).
         rwlock_t lock; ///< Lock for the hashtable.
 };
@@ -68,6 +69,7 @@ struct ums_worker {
         struct kref refcnt; ///< Reference counter for the worker.
 };
 
+/// Defines an hashtable node representing a worker.
 typedef struct ums_worker_node {
         struct ums_worker *worker;
         pid_t tid; ///< The key for hashtables. Provides also quicker access to worker TID.

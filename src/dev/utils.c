@@ -6,12 +6,14 @@
  */
 #include "utils.h"
 #include "asm-generic/errno-base.h"
+#include "asm/current.h"
 #include "linux/fs.h"
 #include "linux/gfp.h"
 #include "linux/hashtable.h"
 #include "linux/kernel.h"
 #include "linux/kref.h"
 #include "linux/pid.h"
+#include "linux/printk.h"
 #include "linux/sched.h"
 #include "linux/types.h"
 #include "shared.h"
@@ -57,10 +59,12 @@ long unregister_ums_process (pid_t pid)
         int bkt;
 
         // Find the struct ums_proc of the PID
+        PRINTDBG("Finding the ums_proc struct for process[PID]: %d", pid);
         process = find_ums_proc(pid);
         if (!process) // The process is not registered
                 return -ESRCH;
 
+        PRINTDBG("Found ums_proc process: %d", process->pid);
         // Remove node from the hashtable
         hash_del(&process->node);
 
@@ -81,7 +85,14 @@ long unregister_ums_process (pid_t pid)
         }
 
         // Clear the worker hashtable saved in the ums_proc struct (no need to lock, this is the last thread)
+        PRINTDBG("Preparing to remove and wakeup all workers");
         hash_for_each_safe(process->workers, bkt, tmp, worker_node, node) {
+                /* TEST (This code is used to test workers creation)*/
+                // PRINTDBG("Waking up worker[TID]: %d\n", worker_node->tid);
+                if (worker_node->worker->state != WORKER_TERMINATED) {
+                        wake_up_process(worker_node->worker->task);
+                }
+                /* END TEST */
                 kref_put(&worker_node->worker->refcnt, worker_release); // This is the one freeing the ums_worker
                 hash_del(&worker_node->node);
                 kfree(worker_node);
@@ -110,9 +121,9 @@ long init_worker_node (void)
         worker = kmalloc(sizeof(*worker), GFP_KERNEL);
         if (!worker)
                 return -ENOMEM;
-        task = pid_task(find_vpid(tid), PIDTYPE_PID);
+        task = current;
         worker->task = task;
-        worker->state = UMS_WORKER_IDLE;
+        worker->state = WORKER_IDLE;
         kref_init(&worker->refcnt);
 
         // Initialize worker node
@@ -129,6 +140,36 @@ long init_worker_node (void)
         write_lock(&process->hash_lock);
         hash_add(process->workers, &worker_node->node, tid);
         write_unlock(&process->hash_lock);
+
+        return SUCCESS;
+}
+
+long register_ums_scheduler(unsigned int cpuid)
+{
+        pid_t pid;
+        struct ums_proc *process;
+        struct ums_sched *sched;
+
+        pid = current->tgid;
+        process = find_ums_proc(pid);
+
+        // Initialize ums_sched scheduler data.
+        sched = kmalloc(sizeof(*sched), GFP_KERNEL);
+        if (!sched) {
+                pr_err("Couldn't allocate memory for scheduler struct");
+                return -ENOMEM;
+        }
+        sched->sched_task = current;
+        sched->current_worker = NULL;
+        rwlock_init(&sched->lock);
+
+        // Insert scheduler in struct ums_proc.
+        if (process->schedulers[cpuid]) {
+                pr_err("Error scheduler already registered on given CPUID");
+                return -EEXIST;
+        }
+
+        process->schedulers[cpuid] = sched;
 
         return SUCCESS;
 }

@@ -35,10 +35,19 @@ struct ums_proc *find_ums_proc (pid_t pid);
  *  This function allocates the necessary data structures to represent a UMS worker
  *  and inserts it in the hashtable of the given process.
  *
- *  @param tid: The TID of the worker thread to be registered.
  *  @return long: SUCCESS or an error (<0).
  */
 long init_worker_node (void);
+
+/** @brief Registers a new scheduler for the target process to be run on a specific cpu.
+ *
+ *  This function allocates the necessary memory to a struct ums_sched, and initializes
+ *  it according to the function's parameters.
+ *
+ *  @param cpuid: The ID of the CPU on top of which the scheduler thread will run.
+ *  @return long: SUCCESS or an error (<0).
+ */
+long register_ums_scheduler(unsigned int cpuid);
 
 /// Routine used to free worker when releasing the last kref.
 void worker_release (struct kref *refcnt);
