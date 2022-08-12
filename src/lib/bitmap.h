@@ -18,7 +18,7 @@
 typedef unsigned long *bitmap_t;
 
 // Macros
-#define BITS_TO_LONG(nr) ( (nr + 7) / 8 )
+#define BITS_TO_LONG(nr) ( (unsigned long)((nr + 7) / 8) )
 // Bound to work only on 64bits architecture
 #define BITS_PER_LONG 64
 
@@ -42,7 +42,7 @@ typedef unsigned long *bitmap_t;
  *  @param b: The target bitmap.
  *  @param i: The bit to be unset.
  */
-#define UNSET_BIT(b, i) ( b[i / BITS_PER_LONG] &= ~(1 << (i & (BITS_PER_LONG-1))) )
+#define UNSET_BIT(b, i) ( b[i / BITS_PER_LONG] &= (unsigned long)~(1 << (i & (BITS_PER_LONG-1))) )
 
 /** @brief Gets the i^th bit of the given bitmap.
  *

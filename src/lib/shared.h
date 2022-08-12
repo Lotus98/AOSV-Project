@@ -67,7 +67,7 @@ struct ums_worker_arg {
 struct ums_sched_arg {
         struct ums_thread *ums_thread;
         void (*sched_routine) (void); ///< The scheduler function.
-        int cpuid; ///< The CPU to which the thread will be bound.
+        unsigned int cpuid; ///< The CPU to which the thread will be bound.
         sem_t *sem; ///< Semaphore used to coordinate the main thread with the scheduler thread.
 };
 
@@ -98,7 +98,7 @@ struct ums_sched {
 
 // Global variables
 int dev_fd; ///< The file descriptor of "/dev/umsdev"
-int ncpus; ///< The number of available CPUs in the system
+size_t ncpus; ///< The number of available CPUs in the system
 bitmap_t cpus_map; ///< A bitmap representing the state of the CPUs in the UMS context of this process.
 struct ums_sched **ums_schedulers; ///< An array of pointers to the schedulers in use.
 

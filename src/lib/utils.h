@@ -44,6 +44,6 @@ void *sched_wrap_routine (void *arg);
  *  @param size: The size of the bitmap
  *  @return int: The index (starting from 0) of the wanted bit or -1 if none were found.
  */
-int find_next_zero_bit(unsigned long *map, int size);
+int find_next_zero_bit(unsigned long *map, size_t size);
 
 #endif // !LIB_UTILS_H

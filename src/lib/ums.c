@@ -30,7 +30,7 @@ int ums_init ()
         }
 
         // Configure processors related information
-        ncpus = get_nprocs();
+        ncpus = (size_t)get_nprocs();
         cpus_map = DECLARE_BITMAP((unsigned long)ncpus);
         if (!cpus_map) {
                 perror("Allocating cpus_map during initialization");
@@ -57,12 +57,10 @@ int ums_init ()
 
 void ums_destroy ()
 {
-        // Close IOCTL device
-        close(dev_fd);
         // Free bitmap
         free(cpus_map);
         // Free ums_schedulers
-        for (int i = 0; i < ncpus; i++) {
+        for (size_t i = 0; i < ncpus; i++) {
                 if (ums_schedulers[i]) {
                         free(ums_schedulers[i]);
                 }
@@ -71,6 +69,9 @@ void ums_destroy ()
 
         // Unregister ums process
         ioctl(dev_fd, UNREGISTER_PROC);
+
+        // Close IOCTL device
+        close(dev_fd);
 
         return;
 }
@@ -219,7 +220,7 @@ int EnterUmsSchedulingMode(void (*scheduler_routine)(), ums_list_head_t *worker_
         }
         sched_arg->ums_thread = ums_schedulers[cpuid]->ums_thread;
         sched_arg->sched_routine = scheduler_routine;
-        sched_arg->cpuid = cpuid;
+        sched_arg->cpuid = (unsigned int)cpuid;
         sched_arg->sem = malloc(sizeof(*sched_arg->sem));
         if (!sched_arg->sem) {
                 perror("Initializing semaphore");

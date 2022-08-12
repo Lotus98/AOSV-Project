@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static void bind_to_cpu(int cpuid) {
+static void bind_to_cpu(unsigned int cpuid) {
         cpu_set_t *cpusetp;
         size_t size;
 
@@ -102,13 +102,13 @@ void *sched_wrap_routine (void *arg)
         return NULL;
 }
 
-int find_next_zero_bit(unsigned long *map, int size)
+int find_next_zero_bit(unsigned long *map, size_t size)
 {
         int index = 0;
-        for (index=0; index<size; index++) {
+        for (index=0; (size_t)index<size; index++) {
                 if (GET_BIT(map, index) == 0) break;
         }
-        if (index == size) {
+        if ((size_t)index == size) {
                 index = -1;
         }
         return index;
