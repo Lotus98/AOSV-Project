@@ -59,6 +59,10 @@ long ums_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
                         return -EFAULT;
                 }
                 retval = register_ums_scheduler(cpuid);
+                if ( retval != SUCCESS) {
+                        pr_err(LOG_MSG "Couldn't register scheduler on CPU: %d, for process PID: %d\n", cpuid, current->tgid);
+                        return retval;
+                }
                 break;
         default:
                 return -EINVAL;
