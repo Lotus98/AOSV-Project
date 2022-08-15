@@ -23,13 +23,6 @@ long register_ums_process (pid_t pid);
  */
 long unregister_ums_process (pid_t pid);
 
-/** @brief Finds a UMS process given its PID.
- *  @param pid: The pid of the process that holds resources (TGID).
- *  @return struct ums_proc: The wanted ums_proc struct.
- *  @return NULL: If the process is not in the UMS processes hashtable.
- */
-struct ums_proc *find_ums_proc (pid_t pid);
-
 /** @brief Initializes a worker node and saves it in the given process hashtable.
  *
  *  This function allocates the necessary data structures to represent a UMS worker
@@ -47,7 +40,13 @@ long init_worker_node (void);
  *  @param cpuid: The ID of the CPU on top of which the scheduler thread will run.
  *  @return long: SUCCESS or an error (<0).
  */
-long register_ums_scheduler(unsigned int cpuid);
+long register_ums_scheduler (unsigned int cpuid);
+
+/** @brief Registers a worker thread on a specified scheduler's worker list.
+ *  @param usr_worker: The worker's informations.
+ *  @return long: SUCCESS or an error (<0).
+ */
+long register_usr_worker (struct ums_usr_worker *usr_worker);
 
 /// Routine used to free worker when releasing the last kref.
 void worker_release (struct kref *refcnt);

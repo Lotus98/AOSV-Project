@@ -6,6 +6,7 @@
  */
 #include "utils.h"
 #include "asm-generic/errno-base.h"
+#include "asm-generic/errno.h"
 #include "asm/current.h"
 #include "linux/fs.h"
 #include "linux/gfp.h"
@@ -18,6 +19,49 @@
 #include "linux/types.h"
 #include "shared.h"
 #include <linux/slab.h>
+
+// /** @brief Finds a UMS process given its PID.
+//  *  @param pid: The pid of the process that holds resources (TGID).
+//  *  @return struct ums_proc: The wanted ums_proc struct.
+//  *  @return NULL: If the process is not in the UMS processes hashtable.
+//  */
+// struct ums_proc *find_ums_proc (pid_t pid);
+static struct ums_proc *find_ums_proc (pid_t pid)
+{
+        struct ums_proc *process;
+
+        // Find the corresponding structure
+        hash_for_each_possible(ums_procs, process, node, pid) {
+                if (process->pid == pid)
+                        break;
+        }
+        if (!process) // The process is not registered
+                return NULL;
+
+        return process;
+}
+
+// IMPORTANT: This function increments also the worker's refcnt.
+static struct ums_worker *get_ums_worker (struct ums_proc *process, pid_t tid) {
+        struct ums_worker *worker;
+        ums_worker_node_t *worker_node;
+
+        // Get read lock on worker list.
+        read_lock(&process->hash_lock);
+        hash_for_each_possible(process->workers, worker_node, node, tid) {
+                if (worker_node->tid == tid)
+                        break;
+        }
+        // Release read lock worker list
+        read_unlock(&process->hash_lock);
+        if (!worker_node)
+                return NULL;
+
+        kref_get(&worker_node->worker->refcnt);
+        worker = worker_node->worker;
+
+        return worker;
+}
 
 long register_ums_process (pid_t pid)
 {
@@ -174,20 +218,54 @@ long register_ums_scheduler(unsigned int cpuid)
         return SUCCESS;
 }
 
-struct ums_proc *find_ums_proc (pid_t pid)
+long register_usr_worker (struct ums_usr_worker *usr_worker)
 {
         struct ums_proc *process;
+        struct ums_sched *scheduler;
+        struct ums_worker *worker;
+        ums_worker_node_t *worker_node;
 
-        // Find the corresponding structure
-        hash_for_each_possible(ums_procs, process, node, pid) {
-                if (process->pid == pid)
-                        break;
+        // Allocate worker node
+        worker_node = kmalloc(sizeof(*worker_node), GFP_KERNEL);
+        if (!worker_node)
+                return -ENOMEM;
+
+        // Find corresponding process
+        process = find_ums_proc(current->tgid);
+        if (!process) {
+                kfree(worker_node);
+                return -ESRCH;
         }
-        if (!process) // The process is not registered
-                return NULL;
 
-        return process;
+        // Find the wanted worker (Remember this already performs a kref_get)
+        worker = get_ums_worker(process, usr_worker->tid);
+        if (!worker) {
+                kfree(worker_node);
+                return -ENODATA;
+        }
+
+        // Get the corresponding scheduler.
+        scheduler = process->schedulers[usr_worker->cpuid];
+        if (!scheduler) {
+                kfree(worker_node);
+                kref_put(&worker->refcnt, worker_release); // This needs to be done or we will never free the worker.
+                return -ENODATA;
+        }
+
+        // Initialize worker_node
+        worker_node->worker = worker;
+        worker_node->tid = usr_worker->tid;
+
+        // Get write lock on scheduler's worker list.
+        write_lock(&scheduler->lock);
+        hash_add(scheduler->worker_list, &worker_node->node, worker_node->tid);
+        // Release write lock on scheduler's worker list.
+        write_unlock(&scheduler->lock);
+
+        return SUCCESS;
 }
+
+
 
 void worker_release (struct kref *refcnt)
 {

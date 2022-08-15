@@ -25,6 +25,8 @@
 #define UNREGISTER_PROC _IO(0x1337, 'c')
 /// Command to register a scheduler thread, takes as input the CPUID where to register the scheduler
 #define REGISTER_SCHED _IOW(0x1337, 'd', unsigned int)
+/// Command to register a worker to a precise scheduler.
+#define REGISTER_WORKER _IOW(0x1337, 'd', struct ums_usr_worker)
 
 
 /** IOCTL implementation to handle interaction with the LKM.

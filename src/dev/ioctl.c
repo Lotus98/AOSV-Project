@@ -18,6 +18,7 @@
 
 long ums_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
+        struct ums_usr_worker usr_worker;
         pid_t pid, tid;
         unsigned int cpuid;
         long retval;
@@ -61,6 +62,18 @@ long ums_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
                 retval = register_ums_scheduler(cpuid);
                 if ( retval != SUCCESS) {
                         pr_err(LOG_MSG "Couldn't register scheduler on CPU: %d, for process PID: %d\n", cpuid, current->tgid);
+                        return retval;
+                }
+                break;
+        case REGISTER_WORKER:
+                if (copy_from_user(&usr_worker, (struct ums_usr_worker *)arg, sizeof(usr_worker)) != 0) {
+                        pr_err(LOG_MSG "Error in copy_from_user copying usr_worker in process: %d\n", current->tgid);
+                        return -EFAULT;
+                }
+                retval = register_usr_worker(&usr_worker);
+                if ( retval != SUCCESS) {
+                        pr_err(LOG_MSG "Couldn't register worker[TID]: %d on CPU: %d, for process PID: %d\n",
+                                usr_worker.tid, usr_worker.cpuid, current->tgid);
                         return retval;
                 }
                 break;

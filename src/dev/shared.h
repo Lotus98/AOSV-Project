@@ -76,6 +76,13 @@ typedef struct ums_worker_node {
         struct hlist_node node; ///< The node of the hashtable's bucket.
 } ums_worker_node_t;
 
+/// Defines a tuple used to send worker thread registration informations to the LKM.
+struct ums_usr_worker {
+        unsigned int cpuid; ///< The cpuid related to the scheduler on which we are registering the worker.
+        pid_t tid; ///< The TID of the target worker.
+};
+
+
 // Global variables
 extern DECLARE_HASHTABLE(ums_procs, HBITS); ///< Hashtable to keep all the processes that are in UMS mode.
 extern int ncpus; ///< The number of online CPUs in the system.
