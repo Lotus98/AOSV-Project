@@ -9,6 +9,7 @@
 #include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/ioctl.h>
 
 static void bind_to_cpu(unsigned int cpuid) {
         cpu_set_t *cpusetp;
@@ -73,26 +74,25 @@ void *worker_wrap_routine (void *arg)
 
 void *sched_wrap_routine (void *arg)
 {
+        long retval;
         struct ums_sched_arg *wrap_arg = (struct ums_sched_arg *)arg;
 
         // Get TID
         wrap_arg->ums_thread->tid = gettid();
+        // Bind thread to CPU
+        bind_to_cpu(wrap_arg->cpuid);
+        // Register scheduler into LKM.
+        retval = ioctl(dev_fd, REGISTER_SCHED, wrap_arg->cpuid);
+        if (retval != SUCCESS) {
+                perror("Registering scheduler thread");
+                pthread_exit(NULL);
+        }
+
+        // Signal on the semaphore so main thread can start registering workers.
         if (sem_post(wrap_arg->sem) != 0) {
                 perror("Incrementing semaphore");
                 pthread_exit(NULL);
         }
-
-
-        if (sem_wait(wrap_arg->sem) != 0) {
-                perror("[Scheduler thread] Waiting on semaphore");
-                abort();
-        }
-
-        // Bind thread to CPU
-        bind_to_cpu(wrap_arg->cpuid);
-
-        // Register scheduler into LKM TODO
-
         // Execute scheduler
         wrap_arg->sched_routine();
 

@@ -46,6 +46,8 @@
 #define INIT_WORKER _IO(0x1337, 'a') ///< Set state of the calling thread to TASK_IDLE.
 #define REGISTER_PROC _IO(0x1337, 'b') ///< Register a process to be in UMS mode.
 #define UNREGISTER_PROC _IO(0x1337, 'c') ///< Unregister a process that is in UMS mode.
+#define REGISTER_SCHED _IOW(0x1337, 'd', unsigned int) ///< Command to register a scheduler thread.
+#define REGISTER_WORKER _IOW(0x1337, 'd', struct ums_usr_worker) ///< Command to register a worker to a precise scheduler.
 
 
 // Data structures needed by the lib
@@ -95,6 +97,13 @@ struct ums_sched {
         int cpuid; ///< The id of the assigned CPU.
         ums_list_head_t *worker_list;
 };
+
+/// Defines a tuple used to send worker thread registration informations to the LKM.
+struct ums_usr_worker {
+        unsigned int cpuid; ///< The cpuid related to the scheduler on which we are registering the worker.
+        pid_t tid; ///< The TID of the target worker.
+};
+
 
 // Global variables
 int dev_fd; ///< The file descriptor of "/dev/umsdev"

@@ -8,6 +8,7 @@
  *  @bug No known bugs.
  */
 
+#include "list.h"
 #include "shared.h"
 #include "bitmap.h"
 #include "ums.h"
@@ -165,6 +166,7 @@ int ums_worker_list_insert(ums_list_head_t *head, struct ums_worker *worker)
                 return FAILURE;
         }
 
+        // TODO: increment worker refcnt (do we need a mutex?)
         list_add(&worker_node->list, &head->list);
 
         // Release list rwlock
@@ -179,11 +181,8 @@ int ums_worker_list_insert(ums_list_head_t *head, struct ums_worker *worker)
 
 int EnterUmsSchedulingMode(void (*scheduler_routine)(), ums_list_head_t *worker_list)
 {
-        /*  TODO:
-         *  - Create wrapper for pthread_create for scheduler.
-         *      - Register scheduler and worker list in LKM
-         */
         int cpuid, ret_pthread;
+        ums_worker_node_t *worker_node;
         struct ums_sched_arg *sched_arg;
 
         cpuid = find_next_zero_bit(cpus_map, ncpus);
@@ -251,7 +250,7 @@ int EnterUmsSchedulingMode(void (*scheduler_routine)(), ums_list_head_t *worker_
                 UNSET_BIT(cpus_map, cpuid);
                 return ret_pthread;
         }
-        // Wait for the ums_thread->tid to be populated
+        // Wait for the ums_thread->tid to be populated and for the scheduler to be registered.
         if (sem_wait(sched_arg->sem) != 0) {
                 perror("[Main thread] Waiting on semaphore");
                 abort();
@@ -262,10 +261,16 @@ int EnterUmsSchedulingMode(void (*scheduler_routine)(), ums_list_head_t *worker_
         }
         free(sched_arg->sem);
 
-        /*  TODO:
-         *  - Register worker_list into LKM, having care it is bound to the scheduler.
-         */
+        // Register worker list.
+        list_for_each_entry(worker_node, &worker_list->list, list) {
+                struct ums_usr_worker *usr_worker;
 
+                usr_worker = malloc(sizeof(*usr_worker));
+                usr_worker->tid = worker_node->worker->thread.tid;
+                usr_worker->cpuid = (unsigned int)cpuid;
+                ioctl(dev_fd, REGISTER_WORKER, usr_worker);
+                free(usr_worker);
+        }
 
         return SUCCESS;
 }
