@@ -29,9 +29,7 @@
 #define HBITS 8 ///< "bits" used by a general hashtable (8 = 256 entries).
 
 // Worker states
-#define WORKER_RUNNING          0
-#define WORKER_IDLE             1
-#define WORKER_TERMINATED       2
+enum state {WORKER_RUNNING, WORKER_IDLE, WORKER_TERMINATED};
 
 // #ifndef PRINTDBG
 #define PRINTDBG(fmt, args...) pr_debug(LOG_MSG fmt, ##args)
@@ -65,7 +63,7 @@ struct ums_sched {
 /// Defines a worker thread.
 struct ums_worker {
         struct task_struct *task; ///< The task_struct of the thread.
-        unsigned long state; ///< The current executing state of the worker.
+        enum state state; ///< The current state of the worker.
         struct kref refcnt; ///< Reference counter for the worker.
 };
 
