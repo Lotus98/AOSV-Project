@@ -1,7 +1,7 @@
 CC = gcc
 TARGET = app
 
-CFLAGS += -std=c99 -Wall -pedantic -Wextra
+CFLAGS += -std=c11 -Wall -Wextra
 LDFLAGS += -pthread
 
 BUILD_DIR = ./bin
