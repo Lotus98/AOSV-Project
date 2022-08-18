@@ -48,6 +48,16 @@ long register_ums_scheduler (unsigned int cpuid);
  */
 long register_usr_worker (struct ums_usr_worker *usr_worker);
 
+/** @brief Executes the given worker on the current cpu.
+ *
+ *  Switches the execution from the scheduler thread to a worker thread, by swapping
+ *  their pt_regs. This allows the scheduler's to effectively host the thread's execution.
+ *
+ *  @param tid: The PID of the worker to be executed.
+ *  @return long: SUCCESS or an error (<0).
+ */
+long execute_thread (pid_t tid);
+
 /// Routine used to free worker when releasing the last kref.
 void worker_release (struct kref *refcnt);
 

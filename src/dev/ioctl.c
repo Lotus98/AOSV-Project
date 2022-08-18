@@ -77,6 +77,17 @@ long ums_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
                         return retval;
                 }
                 break;
+        case EXECUTE_THREAD:
+                if (copy_from_user(&tid, (pid_t *)arg, sizeof(tid)) != 0) {
+                        pr_err(LOG_MSG "Error in copy_from_user copying worker tid\n");
+                        return -EFAULT;
+                }
+                retval = execute_thread(tid);
+                if ( retval != SUCCESS) {
+                        pr_err(LOG_MSG "Error executing thread[TID]: %d\n", tid);
+                        return retval;
+                }
+                break;
         default:
                 return -EINVAL;
         }

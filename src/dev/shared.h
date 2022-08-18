@@ -10,6 +10,8 @@
 #ifndef DEV_SHARED_H
 #define DEV_SHARED_H
 
+#include "asm/ptrace.h"
+#include "linux/spinlock_types.h"
 #include <asm-generic/errno.h>
 #include <linux/printk.h>
 #include <linux/sched.h>
@@ -56,6 +58,7 @@ struct ums_proc {
 struct ums_sched {
         struct task_struct *sched_task; ///< The task_struct of the scheduler thread.
         struct ums_worker *current_worker; ///< The worker currently running on the scheduler context, NULL if none.
+        struct pt_regs sched_regs; ///< Backup of the scheduler's state, used in the context switch.
         DECLARE_HASHTABLE(worker_list, HBITS); ///< The completion list (implemented as an hashtable).
         rwlock_t lock; ///< Lock for the hashtable.
 };
@@ -65,6 +68,7 @@ struct ums_worker {
         struct task_struct *task; ///< The task_struct of the thread.
         enum state state; ///< The current state of the worker.
         struct kref refcnt; ///< Reference counter for the worker.
+        spinlock_t lock; ///< Lock used to keep coherent the state of a worker.
 };
 
 /// Defines an hashtable node representing a worker.

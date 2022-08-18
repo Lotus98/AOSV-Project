@@ -23,10 +23,14 @@
 #define REGISTER_PROC _IO(0x1337, 'b')
 /// Command to unregister a process that is in UMS mode.
 #define UNREGISTER_PROC _IO(0x1337, 'c')
-/// Command to register a scheduler thread, takes as input the CPUID where to register the scheduler
+/// Command to register a scheduler thread, takes as input the CPUID where to register the scheduler.
 #define REGISTER_SCHED _IOW(0x1337, 'd', unsigned int)
 /// Command to register a worker to a precise scheduler.
 #define REGISTER_WORKER _IOW(0x1337, 'e', struct ums_usr_worker)
+/// Command to execute a ums worker.
+#define EXECUTE_THREAD _IOW(0x1337, 'f', pid_t)
+/// Command to yield the calling thread.
+#define THREAD_YIELD _IO(0x1337, 'g')
 
 
 /** IOCTL implementation to handle interaction with the LKM.

@@ -8,6 +8,9 @@
 #include "asm-generic/errno-base.h"
 #include "asm-generic/errno.h"
 #include "asm/current.h"
+#include "asm/processor.h"
+#include "asm/ptrace.h"
+#include "asm/string_64.h"
 #include "linux/fs.h"
 #include "linux/gfp.h"
 #include "linux/hashtable.h"
@@ -16,9 +19,12 @@
 #include "linux/pid.h"
 #include "linux/printk.h"
 #include "linux/sched.h"
+#include "linux/spinlock.h"
 #include "linux/types.h"
 #include "shared.h"
 #include <linux/slab.h>
+#include <linux/sched/task.h>
+#include <linux/sched/task_stack.h>
 
 // /** @brief Finds a UMS process given its PID.
 //  *  @param pid: The pid of the process that holds resources (TGID).
@@ -42,7 +48,7 @@ static struct ums_proc *find_ums_proc (pid_t pid)
 }
 
 // IMPORTANT: This function increments also the worker's refcnt.
-static struct ums_worker *get_ums_worker (struct ums_proc *process, pid_t tid) {
+static struct ums_worker *get_worker (struct ums_proc *process, pid_t tid) {
         struct ums_worker *worker;
         ums_worker_node_t *worker_node;
 
@@ -168,6 +174,7 @@ long init_worker_node (void)
         task = current;
         worker->task = task;
         worker->state = WORKER_IDLE;
+        spin_lock_init(&worker->lock);
         kref_init(&worker->refcnt);
 
         // Initialize worker node
@@ -218,6 +225,9 @@ long register_ums_scheduler(unsigned int cpuid)
         return SUCCESS;
 }
 
+/*  This function does not need to acquire the lock for the worker, since we are
+ *  neither changing its state, nor reading it.
+ */
 long register_usr_worker (struct ums_usr_worker *usr_worker)
 {
         struct ums_proc *process;
@@ -238,7 +248,7 @@ long register_usr_worker (struct ums_usr_worker *usr_worker)
         }
 
         // Find the wanted worker (Remember this already performs a kref_get)
-        worker = get_ums_worker(process, usr_worker->tid);
+        worker = get_worker(process, usr_worker->tid);
         if (!worker) {
                 kfree(worker_node);
                 return -ENODATA;
@@ -265,7 +275,46 @@ long register_usr_worker (struct ums_usr_worker *usr_worker)
         return SUCCESS;
 }
 
+long execute_thread (pid_t tid)
+{
+        unsigned int cpuid = current->cpu;
+        struct ums_proc *process;
+        struct ums_sched *scheduler;
+        ums_worker_node_t *worker_node;
 
+        process = find_ums_proc(current->tgid);
+        scheduler = process->schedulers[cpuid];
+        // Take a read lock on the scheduler's hashtable
+        read_lock(&scheduler->lock);
+        hash_for_each_possible(scheduler->worker_list, worker_node, node, tid) {
+                if (worker_node->tid == tid)
+                        break;
+        }
+        if (!worker_node)
+                return -ENODATA;
+        // Release worker list lock
+        read_unlock(&scheduler->lock);
+
+        // Acquire spinlock on worker.
+        spin_lock(&worker_node->worker->lock);
+        if (worker_node->worker->state != WORKER_IDLE) {
+                spin_unlock(&worker_node->worker->lock);
+                return -EBUSY;
+        }
+        // Change state
+        worker_node->worker->state = WORKER_RUNNING;
+        // Release worker lock.
+        spin_unlock(&worker_node->worker->lock);
+        // update scheduler's current_worker.
+        scheduler->current_worker = worker_node->worker;
+
+        // Save scheduler's context.
+        memcpy(&scheduler->sched_regs, task_pt_regs(scheduler->sched_task), sizeof(struct pt_regs));
+        // Perform context switch.
+        memcpy(task_pt_regs(scheduler->sched_task), task_pt_regs(worker_node->worker->task), sizeof(struct pt_regs));
+
+        return SUCCESS;
+}
 
 void worker_release (struct kref *refcnt)
 {
