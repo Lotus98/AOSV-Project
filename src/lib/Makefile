@@ -1,5 +1,5 @@
 CC 		= gcc
-CFLAGS       	= -std=c99 -fPIC -pedantic -Wall -Wextra -Wconversion
+CFLAGS       	= -std=c99 -fPIC -Wall -Wextra -Wconversion
 LDFLAGS      	= -shared
 
 # Comment to disable/enable debugging
