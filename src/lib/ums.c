@@ -240,7 +240,7 @@ int EnterUmsSchedulingMode(void (*scheduler_routine)(), ums_list_head_t *worker_
         }
 
         // Create scheduler thread.
-        ret_pthread = pthread_create(&sched_arg->ums_thread->pthread, NULL, sched_wrap_routine, NULL);
+        ret_pthread = pthread_create(&sched_arg->ums_thread->pthread, NULL, sched_wrap_routine, sched_arg);
         if (ret_pthread != 0) {
                 perror("Creating pthread");
                 free(sched_arg->sem);

@@ -82,7 +82,7 @@ void *sched_wrap_routine (void *arg)
         // Bind thread to CPU
         bind_to_cpu(wrap_arg->cpuid);
         // Register scheduler into LKM.
-        retval = ioctl(dev_fd, REGISTER_SCHED, wrap_arg->cpuid);
+        retval = ioctl(dev_fd, REGISTER_SCHED, &wrap_arg->cpuid);
         if (retval != SUCCESS) {
                 perror("Registering scheduler thread");
                 pthread_exit(NULL);

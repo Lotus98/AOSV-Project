@@ -47,7 +47,7 @@
 #define REGISTER_PROC _IO(0x1337, 'b') ///< Register a process to be in UMS mode.
 #define UNREGISTER_PROC _IO(0x1337, 'c') ///< Unregister a process that is in UMS mode.
 #define REGISTER_SCHED _IOW(0x1337, 'd', unsigned int) ///< Command to register a scheduler thread.
-#define REGISTER_WORKER _IOW(0x1337, 'd', struct ums_usr_worker) ///< Command to register a worker to a precise scheduler.
+#define REGISTER_WORKER _IOW(0x1337, 'e', struct ums_usr_worker) ///< Command to register a worker to a precise scheduler.
 
 
 // Data structures needed by the lib
