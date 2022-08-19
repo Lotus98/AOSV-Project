@@ -88,6 +88,9 @@ long ums_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
                         return retval;
                 }
                 break;
+        case THREAD_YIELD:
+                thread_yield();
+                break;
         default:
                 return -EINVAL;
         }
