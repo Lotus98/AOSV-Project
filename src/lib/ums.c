@@ -14,6 +14,7 @@
 #include "ums.h"
 #include "utils.h"
 
+#include <asm-generic/errno-base.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdio.h>
@@ -87,11 +88,11 @@ int ums_worker_create (struct ums_worker *worker,
 
         // Initialize worker
         worker->refcnt = 0;
-        if (pthread_rwlock_init(&(worker->rwlock), NULL) != 0) {
-                perror("Initializing worker rwlock");
+        if (pthread_mutex_init(&(worker->mutex), NULL) != 0) {
+                perror("Initializing worker mutex");
                 return FAILURE;
         }
-
+        worker->state = WORKER_IDLE;
         thread = &worker->thread;
         // Tid will be populated by worker_wrap_routine
         thread->tid = -1;
@@ -166,8 +167,13 @@ int ums_worker_list_insert(ums_list_head_t *head, struct ums_worker *worker)
                 return FAILURE;
         }
 
-        // TODO: increment worker refcnt (do we need a mutex?)
+        // Get worker's mutex.
+        pthread_mutex_lock(&worker->mutex);
+        // Increment refcnt
+        worker->refcnt++;
         list_add(&worker_node->list, &head->list);
+        // Release mutex.
+        pthread_mutex_unlock(&worker->mutex);
 
         // Release list rwlock
         if (pthread_rwlock_unlock(&head->rwlock) != 0) {
@@ -270,6 +276,28 @@ int EnterUmsSchedulingMode(void (*scheduler_routine)(), ums_list_head_t *worker_
                 usr_worker->cpuid = (unsigned int)cpuid;
                 ioctl(dev_fd, REGISTER_WORKER, usr_worker);
                 free(usr_worker);
+        }
+
+        return SUCCESS;
+}
+
+int ExecuteUmsThread (struct ums_worker *worker)
+{
+        long retval;
+
+        // Check and change worker state
+        pthread_mutex_lock(&worker->mutex);
+        if (worker->state != WORKER_IDLE) {
+                errno = EBUSY;
+                return FAILURE;
+        }
+        worker->state = WORKER_RUNNING;
+        pthread_mutex_unlock(&worker->mutex);
+
+        retval = ioctl(dev_fd, EXECUTE_THREAD, &worker->thread.tid);
+        if (!retval) {
+                perror("Couldn't execute given worker");
+                return FAILURE;
         }
 
         return SUCCESS;

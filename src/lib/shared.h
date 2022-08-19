@@ -41,6 +41,8 @@
 #define PRINTDBG(...) do {} while(0)
 #endif // DEBUG
 
+// Worker states
+enum state {WORKER_RUNNING, WORKER_IDLE, WORKER_TERMINATED};
 
 // IOCTL commands
 #define INIT_WORKER _IO(0x1337, 'a') ///< Set state of the calling thread to TASK_IDLE.
@@ -48,6 +50,8 @@
 #define UNREGISTER_PROC _IO(0x1337, 'c') ///< Unregister a process that is in UMS mode.
 #define REGISTER_SCHED _IOW(0x1337, 'd', unsigned int) ///< Command to register a scheduler thread.
 #define REGISTER_WORKER _IOW(0x1337, 'e', struct ums_usr_worker) ///< Command to register a worker to a precise scheduler.
+#define EXECUTE_THREAD _IOW(0x1337, 'f', pid_t) ///< Command to execute a ums worker.
+#define THREAD_YIELD _IO(0x1337, 'g') ///< Command to yield the calling thread.
 
 
 // Data structures needed by the lib
@@ -76,8 +80,9 @@ struct ums_sched_arg {
 /// Structure defining a worker.
 struct ums_worker {
         struct ums_thread thread; ///< Corresponding thread.
-        int refcnt; ///< Reference counter, used to keep track of how many lists contain this worker.
-        pthread_rwlock_t rwlock;
+        unsigned long refcnt; ///< Reference counter, used to keep track of how many lists contain this worker.
+        enum state state; ///< The state of the worker.
+        pthread_mutex_t mutex; ///< Mutex to keep the worker's state coherent as well as the refcnt.
 };
 
 typedef struct ums_worker_node {

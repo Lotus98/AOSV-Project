@@ -14,6 +14,7 @@
 // Includes
 #include "shared.h"
 #include "utils.h"
+#include <fcntl.h>
 
 
 // Prototypes
@@ -76,5 +77,12 @@ int ums_worker_list_insert(ums_list_head_t *head, struct ums_worker *worker);
  *  @param worker_list: The worker list to be assigned to the scheduler.
  */
 int EnterUmsSchedulingMode(void (*scheduler_routine)(), ums_list_head_t *worker_list);
+
+/** @brief Executes the given worker in the scheduler's context.
+ *  @param worker: The worker to be executed.
+ *  @return SUCCESS: If the worker has been correctly executed.
+ *  @return <0: If the worker could not be executed.
+ */
+int ExecuteUmsThread (struct ums_worker *worker);
 
 #endif // !LIB_UMS_H
