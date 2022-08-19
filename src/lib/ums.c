@@ -210,6 +210,7 @@ int EnterUmsSchedulingMode(void (*scheduler_routine)(), ums_list_head_t *worker_
                 UNSET_BIT(cpus_map, cpuid);
                 return FAILURE;
         }
+        ums_schedulers[cpuid]->current_worker = NULL;
         ums_schedulers[cpuid]->worker_list = worker_list;
         // Initilized by the wrapper
         ums_schedulers[cpuid]->ums_thread->tid = -1;
@@ -283,8 +284,10 @@ int EnterUmsSchedulingMode(void (*scheduler_routine)(), ums_list_head_t *worker_
 
 int ExecuteUmsThread (struct ums_worker *worker)
 {
+        unsigned int cpuid;
         long retval;
 
+        getcpu(&cpuid, NULL);
         // Check and change worker state
         pthread_mutex_lock(&worker->mutex);
         if (worker->state != WORKER_IDLE) {
@@ -294,11 +297,36 @@ int ExecuteUmsThread (struct ums_worker *worker)
         worker->state = WORKER_RUNNING;
         pthread_mutex_unlock(&worker->mutex);
 
+        // Set current_worker.
+        ums_schedulers[cpuid]->current_worker = worker;
+
         retval = ioctl(dev_fd, EXECUTE_THREAD, &worker->thread.tid);
         if (!retval) {
                 perror("Couldn't execute given worker");
+                ums_schedulers[cpuid]->current_worker = NULL;
                 return FAILURE;
         }
+
+        return SUCCESS;
+}
+
+int UmsThreadYield (void)
+{
+        unsigned int cpuid;
+        struct ums_worker *worker;
+
+        getcpu(&cpuid, NULL);
+        worker = ums_schedulers[cpuid]->current_worker;
+        // Change worker's state
+        pthread_mutex_lock(&worker->mutex);
+        worker->state = WORKER_IDLE;
+        pthread_mutex_unlock(&worker->mutex);
+
+        // Unset current_worker
+        ums_schedulers[cpuid]->current_worker = NULL;
+
+        // Yield worker
+        ioctl(dev_fd, THREAD_YIELD);
 
         return SUCCESS;
 }

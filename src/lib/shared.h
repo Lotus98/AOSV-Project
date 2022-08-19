@@ -99,6 +99,7 @@ typedef struct ums_list_head {
 /// Structure to define a scheduler thread and its context.
 struct ums_sched {
         struct ums_thread *ums_thread; ///< The ums_thread related to the scheduler.
+        struct ums_worker *current_worker; ///< The worker currently executing in the scheduler's context.
         int cpuid; ///< The id of the assigned CPU.
         ums_list_head_t *worker_list;
 };

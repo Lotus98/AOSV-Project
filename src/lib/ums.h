@@ -85,4 +85,7 @@ int EnterUmsSchedulingMode(void (*scheduler_routine)(), ums_list_head_t *worker_
  */
 int ExecuteUmsThread (struct ums_worker *worker);
 
+/// @brief Yields the current worker and restores the scheduler's context
+int UmsThreadYield (void);
+
 #endif // !LIB_UMS_H
