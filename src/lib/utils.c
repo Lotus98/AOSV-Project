@@ -5,7 +5,9 @@
  *  @bug No known bugs.
  */
 #include "utils.h"
+#include "list.h"
 #include "shared.h"
+#include <pthread.h>
 #include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -112,4 +114,20 @@ int find_next_zero_bit(unsigned long *map, size_t size)
                 index = -1;
         }
         return index;
+}
+
+ums_worker_node_t *find_worker_tid (ums_list_head_t *head, pid_t tid)
+{
+        ums_worker_node_t *worker_node;
+
+        pthread_rwlock_rdlock(&head->rwlock);
+        list_for_each_entry(worker_node, &head->list, list) {
+                if (worker_node->worker->thread.tid == tid) {
+                        pthread_rwlock_unlock(&head->rwlock);
+                        return worker_node;
+                }
+        }
+        pthread_rwlock_unlock(&head->rwlock);
+
+        return NULL;
 }

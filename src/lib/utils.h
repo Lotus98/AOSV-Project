@@ -12,6 +12,7 @@
 
 // Includes
 #include "shared.h"
+#include <fcntl.h>
 #include <sys/ioctl.h>
 
 // Macros
@@ -45,5 +46,13 @@ void *sched_wrap_routine (void *arg);
  *  @return int: The index (starting from 0) of the wanted bit or -1 if none were found.
  */
 int find_next_zero_bit(unsigned long *map, size_t size);
+
+/** @brief Finds the worker node corresponding to the given tid.
+ *  @param head: The head of the list to search.
+ *  @param tid: The tid of the worker to be found.
+ *  @return NULL: If there is no worker with such tid.
+ *  @return ums_worker_node_t *: The wanted worker.
+ */
+ums_worker_node_t *find_worker_tid (ums_list_head_t *head, pid_t tid);
 
 #endif // !LIB_UTILS_H

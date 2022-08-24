@@ -15,6 +15,7 @@
 #include "utils.h"
 
 #include <asm-generic/errno-base.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdio.h>
@@ -187,8 +188,9 @@ int ums_worker_list_insert(ums_list_head_t *head, struct ums_worker *worker)
 
 int EnterUmsSchedulingMode(void (*scheduler_routine)(), ums_list_head_t *worker_list)
 {
-        int cpuid, ret_pthread;
+        int cpuid, nworkers = 0, ret_pthread;
         ums_worker_node_t *worker_node;
+        struct list_head *pos;
         struct ums_sched_arg *sched_arg;
 
         cpuid = find_next_zero_bit(cpus_map, ncpus);
@@ -202,7 +204,7 @@ int EnterUmsSchedulingMode(void (*scheduler_routine)(), ums_list_head_t *worker_
                 perror("Allocating struct ums_sched for requested scheduler");
                 return FAILURE;
         }
-        ums_schedulers[cpuid]->cpuid = cpuid;
+        ums_schedulers[cpuid]->cpuid = (unsigned int)cpuid;
         ums_schedulers[cpuid]->ums_thread = malloc(sizeof(struct ums_thread));
         if (!ums_schedulers[cpuid]->ums_thread) {
                 perror("Allocating struct ums_thread for scheduler");
@@ -211,6 +213,10 @@ int EnterUmsSchedulingMode(void (*scheduler_routine)(), ums_list_head_t *worker_
                 return FAILURE;
         }
         ums_schedulers[cpuid]->current_worker = NULL;
+        list_for_each(pos, &worker_list->list) {
+                nworkers++;
+        }
+        ums_schedulers[cpuid]->nworkers = (unsigned int)nworkers;
         ums_schedulers[cpuid]->worker_list = worker_list;
         // Initilized by the wrapper
         ums_schedulers[cpuid]->ums_thread->tid = -1;
@@ -329,4 +335,37 @@ int UmsThreadYield (void)
         ioctl(dev_fd, THREAD_YIELD);
 
         return SUCCESS;
+}
+
+struct list_head *DequeueUmsCompletionListItems (void)
+{
+        struct list_head *head = NULL;
+        ums_worker_node_t *worker_node;
+        unsigned int *tid_list, cpuid;
+
+        getcpu(&cpuid, NULL);
+        // The "+ 1" is to get the number of available workers
+        tid_list = calloc(ums_schedulers[cpuid]->nworkers + 1, sizeof(*tid_list));
+        // In the first position copy the nmemb size of the array. (Little hack for LKM)
+        *tid_list = ums_schedulers[cpuid]->nworkers;
+
+        // IOCTL call
+        ioctl(dev_fd, DEQUEUE_LIST, tid_list);
+        if (*tid_list == 0) // All the workers are terminated
+                return NULL;
+
+        // Create list
+        head = malloc(sizeof(*head));
+        for (size_t i = 1; i <= ums_schedulers[cpuid]->nworkers; i++) {
+                if (tid_list[i] == 0)
+                        break;
+                worker_node = find_worker_tid(ums_schedulers[cpuid]->worker_list, (pid_t)tid_list[i]);
+                if (!worker_node) {
+                        fprintf(stderr, "Worker[TID]: %d not found in scheduler[ID]: %d\n", tid_list[i], cpuid);
+                        continue;
+                }
+                list_add(&worker_node->list, head);
+        }
+
+        return head;
 }

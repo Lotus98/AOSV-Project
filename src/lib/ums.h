@@ -12,6 +12,7 @@
 #define LIB_UMS_H
 
 // Includes
+#include "list.h"
 #include "shared.h"
 #include "utils.h"
 #include <fcntl.h>
@@ -87,5 +88,18 @@ int ExecuteUmsThread (struct ums_worker *worker);
 
 /// @brief Yields the current worker and restores the scheduler's context
 int UmsThreadYield (void);
+
+/** @brief Returns a list of valid ums_worker_node_t workers that are available to be executed.
+ *
+ *  This function is a blocking function and will return a sublist of workers,
+ *  from the ums scheduler's list, that are available to be executed on this scheduler.
+ *  A worker in the list might become unavailable after the call, if it is shared
+ *  with other completion lists, on different schedulers. To get a new valid list
+ *  a new call to this function must be performed.
+ *
+ *  @return struct list_head *: A pointer to a list head that will contain valid workers.
+ *  @return NULL: If all workers on the scheduler's completion list are terminated.
+ */
+struct list_head *DequeueUmsCompletionListItems (void);
 
 #endif // !LIB_UMS_H

@@ -52,6 +52,7 @@ enum state {WORKER_RUNNING, WORKER_IDLE, WORKER_TERMINATED};
 #define REGISTER_WORKER _IOW(0x1337, 'e', struct ums_usr_worker) ///< Command to register a worker to a precise scheduler.
 #define EXECUTE_THREAD _IOW(0x1337, 'f', pid_t) ///< Command to execute a ums worker.
 #define THREAD_YIELD _IO(0x1337, 'g') ///< Command to yield the calling thread.
+#define DEQUEUE_LIST _IOWR(0x1337, 'h', int) ///< Command to get the list of available workers.
 
 
 // Data structures needed by the lib
@@ -100,7 +101,8 @@ typedef struct ums_list_head {
 struct ums_sched {
         struct ums_thread *ums_thread; ///< The ums_thread related to the scheduler.
         struct ums_worker *current_worker; ///< The worker currently executing in the scheduler's context.
-        int cpuid; ///< The id of the assigned CPU.
+        unsigned int cpuid; ///< The id of the assigned CPU.
+        unsigned int nworkers; ///< The total number of workers in the worker_list.
         ums_list_head_t *worker_list;
 };
 
