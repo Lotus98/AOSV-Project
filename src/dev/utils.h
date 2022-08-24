@@ -59,9 +59,13 @@ long register_usr_worker (struct ums_usr_worker *usr_worker);
 long execute_thread (pid_t tid);
 
 /** @brief Yields the current running worker and restores the scheduler's context.
- *  @return long: SUCCESS or an error (<0).
  */
-long thread_yield (void);
+void thread_yield (void);
+
+/** @brief Populates the array with the available worker's using their TIDs.
+ *  @param tid_list: The array to be populated.
+ */
+void dequeue_list (unsigned int *tid_list);
 
 /// Routine used to free worker when releasing the last kref.
 void worker_release (struct kref *refcnt);

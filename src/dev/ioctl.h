@@ -31,6 +31,8 @@
 #define EXECUTE_THREAD _IOW(0x1337, 'f', pid_t)
 /// Command to yield the calling thread.
 #define THREAD_YIELD _IO(0x1337, 'g')
+/// Command to get the list of available workers.
+#define DEQUEUE_LIST _IOWR(0x1337, 'h', int)
 
 
 /** IOCTL implementation to handle interaction with the LKM.

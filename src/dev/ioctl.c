@@ -10,6 +10,8 @@
  */
 #include "asm-generic/errno-base.h"
 #include "asm/current.h"
+#include "linux/gfp.h"
+#include "linux/slab.h"
 #include "linux/types.h"
 #include "linux/uaccess.h"
 #include "shared.h"
@@ -20,7 +22,7 @@ long ums_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
         struct ums_usr_worker usr_worker;
         pid_t pid, tid;
-        unsigned int cpuid;
+        unsigned int cpuid, ntids, *tid_list;
         long retval;
 
         switch (cmd) {
@@ -90,6 +92,22 @@ long ums_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
                 break;
         case THREAD_YIELD:
                 thread_yield();
+                break;
+        case DEQUEUE_LIST:
+                if (copy_from_user(&ntids, (unsigned int *)arg, sizeof(ntids)) != 0) {
+                        pr_err(LOG_MSG "Error in copy_from_user DEQUEUE_LIST\n");
+                        return -EFAULT;
+                }
+                tid_list = kcalloc(ntids, sizeof(*tid_list), GFP_KERNEL);
+
+                dequeue_list(tid_list);
+
+                if (copy_to_user((unsigned int *)arg, tid_list, ntids * sizeof(*tid_list)) != 0) {
+                        pr_err(LOG_MSG "Error in copy_from_user DEQUEUE_LIST\n");
+                        kfree(tid_list);
+                        return -EFAULT;
+                }
+                kfree(tid_list);
                 break;
         default:
                 return -EINVAL;

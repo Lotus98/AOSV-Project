@@ -20,6 +20,7 @@
 #include <linux/types.h>
 #include <linux/rwlock_types.h>
 #include <linux/cpumask.h>
+#include <linux/wait.h>
 
 
 #define DEVICE_NAME "umsdev" ///< The device name in "/dev".
@@ -41,9 +42,9 @@ enum state {WORKER_RUNNING, WORKER_IDLE, WORKER_TERMINATED};
 // Data structures
 /// Defines the components that identify a process using UMS.
 struct ums_proc {
-        pid_t pid; ///< The process PID.
         struct ums_sched **schedulers; ///< An array of pointers representing all the active scheduler threads.
         struct hlist_node node; ///< Node for the bucket in the processes hashtable.
+        pid_t pid; ///< The process PID.
         /*  An hashtable containing all the workers registered by a process.
          *  This is used to allow faster and more efficient lookup of shared workers.
          *  Naturally, this is less memory efficient, but not so bad, since it means
@@ -52,6 +53,13 @@ struct ums_proc {
          */
         DECLARE_HASHTABLE(workers, HBITS); ///< Hashtable of all workers registered by a process.
         rwlock_t hash_lock; ///< lock used to access the workers hashtable.
+        /** The waitqueue may be used by scheduler threads calling DequeueUmsCompletionListItems.
+         *  In fact there might not be available workers, becuase they might be running
+         *  on a different scheduler thread, therefore the call should be blocking.
+         *  We achieve this by waiting for the condition on which every worker on
+         *  a scheduler's list is terminated or there is an idle one.
+         */
+        wait_queue_head_t wq;
 };
 
 /// Defines a scheduler thread.
@@ -68,7 +76,7 @@ struct ums_worker {
         struct task_struct *task; ///< The task_struct of the thread.
         enum state state; ///< The current state of the worker.
         struct kref refcnt; ///< Reference counter for the worker.
-        spinlock_t lock; ///< Lock used to keep coherent the state of a worker.
+        rwlock_t rwlock; ///< Lock used to keep coherent the state of a worker.
 };
 
 /// Defines an hashtable node representing a worker.
