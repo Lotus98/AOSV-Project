@@ -53,6 +53,7 @@ enum state {WORKER_RUNNING, WORKER_IDLE, WORKER_TERMINATED};
 #define EXECUTE_THREAD _IOW(0x1337, 'f', pid_t) ///< Command to execute a ums worker.
 #define THREAD_YIELD _IO(0x1337, 'g') ///< Command to yield the calling thread.
 #define DEQUEUE_LIST _IOWR(0x1337, 'h', int) ///< Command to get the list of available workers.
+#define TERMINATE_WORKER _IO(0x1337, 'i') ///< Command to terminate a running worker and restore the scheduler hosting it.
 
 
 // Data structures needed by the lib
@@ -116,6 +117,7 @@ struct ums_usr_worker {
 // Global variables
 int dev_fd; ///< The file descriptor of "/dev/umsdev"
 size_t ncpus; ///< The number of available CPUs in the system
+// No concurrency on the write for the cpus_map since only the main thread will create new schedulers
 bitmap_t cpus_map; ///< A bitmap representing the state of the CPUs in the UMS context of this process.
 struct ums_sched **ums_schedulers; ///< An array of pointers to the schedulers in use.
 

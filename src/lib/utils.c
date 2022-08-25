@@ -48,9 +48,6 @@ int open_device ()
 
 void *worker_wrap_routine (void *arg)
 {
-        /*  TODO:
-         *  - Any clean up to do after routine is executed
-         */
         struct ums_worker_arg *wrap_arg = (struct ums_worker_arg *)arg;
         struct ums_thread *thread = wrap_arg->ums_thread;
 
@@ -61,15 +58,29 @@ void *worker_wrap_routine (void *arg)
                 pthread_exit(NULL);
         }
 
-
         // Initialize worker and set it to IDLE state.
         ioctl(dev_fd, INIT_WORKER);
 
-        // Execute routine
+        // Execute worker function.
         wrap_arg->ums_routine(wrap_arg->arg);
 
+        /* POST-ROUTINE PROCEDURE : */
+        struct ums_worker *worker;
+        unsigned int cpuid;
+
+        getcpu(&cpuid, NULL);
+        worker = ums_schedulers[cpuid]->current_worker;
+        ums_schedulers[cpuid]->current_worker = NULL;
+        // Set worker state as terminated
+        pthread_mutex_lock(&worker->mutex);
+        worker->state = WORKER_TERMINATED;
+        pthread_mutex_unlock(&worker->mutex);
+
+        // IOCTL call to restore scheduler and terminate worker.
+        ioctl(dev_fd, TERMINATE_WORKER);
+
         // Cleanup
-        free(arg);
+        free(wrap_arg);
 
         return NULL;
 }
