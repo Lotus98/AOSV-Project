@@ -33,6 +33,8 @@
 #define THREAD_YIELD _IO(0x1337, 'g')
 /// Command to get the list of available workers.
 #define DEQUEUE_LIST _IOWR(0x1337, 'h', int)
+/// Command to terminate a running worker and restore the scheduler hosting it.
+#define TERMINATE_WORKER _IO(0x1337, 'i')
 
 
 /** IOCTL implementation to handle interaction with the LKM.

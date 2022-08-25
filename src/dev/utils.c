@@ -416,6 +416,43 @@ void dequeue_list (unsigned int *tid_list)
         return;
 }
 
+void terminate_worker (void)
+{
+        /*  This function is exactly the same as thread_yield() but changes the
+         *  worker's state to WORKER_TERMINATED and wakes up the process.
+         */
+        unsigned int cpuid = current->cpu;
+        struct ums_proc *process;
+        struct ums_sched *scheduler;
+        struct ums_worker *worker;
+
+        process = find_ums_proc(current->tgid);
+        scheduler = process->schedulers[cpuid];
+        worker = scheduler->current_worker;
+        // update scheduler's current_worker.
+        scheduler->current_worker = NULL;
+
+        // Save worker's context.
+        memcpy(task_pt_regs(worker->task), task_pt_regs(scheduler->sched_task), sizeof(struct pt_regs));
+        // Perform context switch.
+        memcpy(task_pt_regs(scheduler->sched_task), &scheduler->sched_regs, sizeof(struct pt_regs));
+
+        // Acquire spinlock on worker.
+        write_lock(&worker->rwlock);
+        // Change state
+        worker->state = WORKER_TERMINATED;
+        // Release worker lock.
+        write_unlock(&worker->rwlock);
+
+        // Wake up process wait queue.
+        wake_up_all(&process->wq);
+
+        // Wake up thread process.
+        wake_up_process(worker->task);
+
+        return;
+}
+
 void worker_release (struct kref *refcnt)
 {
         struct ums_worker *worker = container_of(refcnt, struct ums_worker, refcnt);

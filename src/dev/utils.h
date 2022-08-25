@@ -67,6 +67,9 @@ void thread_yield (void);
  */
 void dequeue_list (unsigned int *tid_list);
 
+/// @brief Terminates the current worker and restores the scheduler hosting it.
+void terminate_worker (void);
+
 /// Routine used to free worker when releasing the last kref.
 void worker_release (struct kref *refcnt);
 

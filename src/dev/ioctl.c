@@ -109,6 +109,9 @@ long ums_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
                 }
                 kfree(tid_list);
                 break;
+        case TERMINATE_WORKER:
+                terminate_worker();
+                break;
         default:
                 return -EINVAL;
         }
