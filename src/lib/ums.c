@@ -60,6 +60,9 @@ int ums_init ()
 
 void ums_destroy ()
 {
+        /*  TODO:
+         *  Call pthread_join() on schedulers
+         */
         // Free bitmap
         free(cpus_map);
         // Free ums_schedulers
@@ -71,7 +74,7 @@ void ums_destroy ()
         free(ums_schedulers);
 
         // Unregister ums process
-        ioctl(dev_fd, UNREGISTER_PROC);
+        ioctl(dev_fd, TERMINATE_PROC);
 
         // Close IOCTL device
         close(dev_fd);
@@ -205,7 +208,7 @@ int EnterUmsSchedulingMode(void (*scheduler_routine)(), ums_list_head_t *worker_
                 return FAILURE;
         }
         ums_schedulers[cpuid]->cpuid = (unsigned int)cpuid;
-        ums_schedulers[cpuid]->ums_thread = malloc(sizeof(struct ums_thread));
+        ums_schedulers[cpuid]->ums_thread = malloc(sizeof(*ums_schedulers[cpuid]->ums_thread));
         if (!ums_schedulers[cpuid]->ums_thread) {
                 perror("Allocating struct ums_thread for scheduler");
                 free(ums_schedulers[cpuid]);

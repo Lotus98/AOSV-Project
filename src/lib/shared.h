@@ -47,7 +47,7 @@ enum state {WORKER_RUNNING, WORKER_IDLE, WORKER_TERMINATED};
 // IOCTL commands
 #define INIT_WORKER _IO(0x1337, 'a') ///< Set state of the calling thread to TASK_IDLE.
 #define REGISTER_PROC _IO(0x1337, 'b') ///< Register a process to be in UMS mode.
-#define UNREGISTER_PROC _IO(0x1337, 'c') ///< Unregister a process that is in UMS mode.
+#define TERMINATE_PROC _IO(0x1337, 'c') ///< Unregister a process that is in UMS mode.
 #define REGISTER_SCHED _IOW(0x1337, 'd', unsigned int) ///< Command to register a scheduler thread.
 #define REGISTER_WORKER _IOW(0x1337, 'e', struct ums_usr_worker) ///< Command to register a worker to a precise scheduler.
 #define EXECUTE_THREAD _IOW(0x1337, 'f', pid_t) ///< Command to execute a ums worker.
@@ -94,7 +94,7 @@ typedef struct ums_worker_node {
 
 /// Structure used to keep track of the head of a worker list.
 typedef struct ums_list_head {
-        pthread_rwlock_t rwlock;
+        pthread_rwlock_t rwlock; // NOTE Is it actually needed?
         struct list_head list;
 } ums_list_head_t;
 
@@ -102,7 +102,7 @@ typedef struct ums_list_head {
 struct ums_sched {
         struct ums_thread *ums_thread; ///< The ums_thread related to the scheduler.
         struct ums_worker *current_worker; ///< The worker currently executing in the scheduler's context.
-        unsigned int cpuid; ///< The id of the assigned CPU.
+        unsigned int cpuid; ///< The id of the assigned CPU. NOTE NOT USED
         unsigned int nworkers; ///< The total number of workers in the worker_list.
         ums_list_head_t *worker_list;
 };

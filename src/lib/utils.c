@@ -109,8 +109,28 @@ void *sched_wrap_routine (void *arg)
         // Execute scheduler
         wrap_arg->sched_routine();
 
+        /* POST-ROUTINE PROCEDURE : */
+        struct ums_sched *scheduler = ums_schedulers[wrap_arg->cpuid];
+        ums_worker_node_t *worker_node, *tmp;
+        struct ums_worker *worker;
+
+        // Cleanup completion list
+        list_for_each_entry_safe(worker_node, tmp, &scheduler->worker_list->list, list) {
+                worker = worker_node->worker;
+                pthread_mutex_lock(&worker->mutex);
+                worker->refcnt--;
+                if (worker->refcnt == 0) {
+                        pthread_mutex_unlock(&worker->mutex);
+                        pthread_mutex_destroy(&worker->mutex);
+                        free(worker);
+                } else
+                        pthread_mutex_unlock(&worker->mutex);
+                list_del(&worker_node->list);
+                free(worker_node);
+        }
+
         // Cleanup
-        free(arg);
+        free(wrap_arg);
 
         return NULL;
 }
