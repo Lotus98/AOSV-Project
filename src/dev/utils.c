@@ -137,7 +137,7 @@ long register_ums_process (pid_t pid)
         return SUCCESS;
 }
 
-long unregister_ums_process (pid_t pid)
+long terminate_ums_process (pid_t pid)
 {
         struct ums_proc *process;
         ums_worker_node_t *worker_node;
@@ -175,6 +175,7 @@ long unregister_ums_process (pid_t pid)
         hash_for_each_safe(process->workers, bkt, tmp, worker_node, node) {
                 /* TEST (This code is used to test workers creation)*/
                 // PRINTDBG("Waking up worker[TID]: %d\n", worker_node->tid);
+                // Cleanup any dangling worker.
                 if (worker_node->worker->state != WORKER_TERMINATED) {
                         wake_up_process(worker_node->worker->task);
                 }

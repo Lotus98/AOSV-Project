@@ -21,7 +21,7 @@ long register_ums_process (pid_t pid);
  *  @param pid: The pid of the process that holds resources (TGID).
  *  @return long: SUCCESS or an error (<0).
  */
-long unregister_ums_process (pid_t pid);
+long terminate_ums_process (pid_t pid);
 
 /** @brief Initializes a worker node and saves it in the given process hashtable.
  *

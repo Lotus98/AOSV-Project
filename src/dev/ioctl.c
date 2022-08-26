@@ -48,11 +48,11 @@ long ums_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
                         return retval;
                 }
                 break;
-        case UNREGISTER_PROC:
+        case TERMINATE_PROC:
                 pid = current->tgid;
-                retval = unregister_ums_process(pid);
+                retval = terminate_ums_process(pid);
                 if ( retval != SUCCESS) {
-                        pr_err(LOG_MSG "Couldn't unregister process PID: %d\n", pid);
+                        pr_err(LOG_MSG "Couldn't terminate process PID: %d\n", pid);
                         return retval;
                 }
                 break;
