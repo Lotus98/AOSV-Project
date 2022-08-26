@@ -115,13 +115,16 @@ void *sched_wrap_routine (void *arg)
         struct ums_worker *worker;
 
         // Cleanup completion list
-        list_for_each_entry_safe(worker_node, tmp, &scheduler->worker_list->list, list) {
+        list_for_each_entry_safe(worker_node, tmp, scheduler->worker_list, list) {
                 worker = worker_node->worker;
                 pthread_mutex_lock(&worker->mutex);
                 worker->refcnt--;
-                if (worker->refcnt == 0) {
+                if (worker->refcnt == 0) { // This should not happen
+                        PRINTDBG("If this is happening you broke the global list");
                         pthread_mutex_unlock(&worker->mutex);
                         pthread_mutex_destroy(&worker->mutex);
+                        // Join worker's pthread
+                        pthread_join(worker->thread.pthread, NULL);
                         free(worker);
                 } else
                         pthread_mutex_unlock(&worker->mutex);
@@ -147,18 +150,15 @@ int find_next_zero_bit(unsigned long *map, size_t size)
         return index;
 }
 
-ums_worker_node_t *find_worker_tid (ums_list_head_t *head, pid_t tid)
+ums_worker_node_t *find_worker_tid (struct list_head *head, pid_t tid)
 {
         ums_worker_node_t *worker_node;
 
-        pthread_rwlock_rdlock(&head->rwlock);
-        list_for_each_entry(worker_node, &head->list, list) {
+        list_for_each_entry(worker_node, head, list) {
                 if (worker_node->worker->thread.tid == tid) {
-                        pthread_rwlock_unlock(&head->rwlock);
                         return worker_node;
                 }
         }
-        pthread_rwlock_unlock(&head->rwlock);
 
         return NULL;
 }

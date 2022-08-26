@@ -51,14 +51,6 @@ int ums_worker_create (struct ums_worker *worker,
                        void *(*start_routine) (void *),
                        void *arg);
 
-/** @brief Initializes the worker list.
- *
- *  @param head: The head of the list.
- *  @return SUCCESS
- *  @return FAILURE
- */
-int ums_worker_list_init(ums_list_head_t *head);
-
 /** @brief Inserts a ums_worker into a worker list.
  *
  *  @param head: The head of the list.
@@ -66,7 +58,7 @@ int ums_worker_list_init(ums_list_head_t *head);
  *  @return SUCCESS
  *  @return FAILURE
  */
-int ums_worker_list_insert(ums_list_head_t *head, struct ums_worker *worker);
+int ums_worker_list_insert(struct list_head *head, struct ums_worker *worker);
 
 /** @brief Initializes the scheduler thread with its relative worker list.
  *
@@ -77,7 +69,7 @@ int ums_worker_list_insert(ums_list_head_t *head, struct ums_worker *worker);
  *  @param scheduler_routine: The scheduler component that will be executed by the scheduler thread.
  *  @param worker_list: The worker list to be assigned to the scheduler.
  */
-int EnterUmsSchedulingMode(void (*scheduler_routine)(), ums_list_head_t *worker_list);
+int EnterUmsSchedulingMode(void (*scheduler_routine)(), struct list_head *worker_list);
 
 /** @brief Executes the given worker in the scheduler's context.
  *  @param worker: The worker to be executed.

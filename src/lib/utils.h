@@ -53,6 +53,6 @@ int find_next_zero_bit(unsigned long *map, size_t size);
  *  @return NULL: If there is no worker with such tid.
  *  @return ums_worker_node_t *: The wanted worker.
  */
-ums_worker_node_t *find_worker_tid (ums_list_head_t *head, pid_t tid);
+ums_worker_node_t *find_worker_tid (struct list_head *head, pid_t tid);
 
 #endif // !LIB_UTILS_H

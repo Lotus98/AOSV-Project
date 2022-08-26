@@ -92,19 +92,13 @@ typedef struct ums_worker_node {
         struct list_head list; ///< struct list pointers.
 } ums_worker_node_t;
 
-/// Structure used to keep track of the head of a worker list.
-typedef struct ums_list_head {
-        pthread_rwlock_t rwlock; // NOTE Is it actually needed?
-        struct list_head list;
-} ums_list_head_t;
-
 /// Structure to define a scheduler thread and its context.
 struct ums_sched {
         struct ums_thread *ums_thread; ///< The ums_thread related to the scheduler.
         struct ums_worker *current_worker; ///< The worker currently executing in the scheduler's context.
         unsigned int cpuid; ///< The id of the assigned CPU. NOTE NOT USED
         unsigned int nworkers; ///< The total number of workers in the worker_list.
-        ums_list_head_t *worker_list;
+        struct list_head *worker_list;
 };
 
 /// Defines a tuple used to send worker thread registration informations to the LKM.
@@ -120,5 +114,6 @@ size_t ncpus; ///< The number of available CPUs in the system
 // No concurrency on the write for the cpus_map since only the main thread will create new schedulers
 bitmap_t cpus_map; ///< A bitmap representing the state of the CPUs in the UMS context of this process.
 struct ums_sched **ums_schedulers; ///< An array of pointers to the schedulers in use.
+struct list_head global_list;
 
 #endif // !LIB_SHARED_H

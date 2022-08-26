@@ -60,24 +60,38 @@ int ums_init ()
 
 void ums_destroy ()
 {
-        /*  TODO:
-         *  Call pthread_join() on schedulers
-         */
+        ums_worker_node_t *node, *tmp;
+
         // Free bitmap
         free(cpus_map);
-        // Free ums_schedulers
-        for (size_t i = 0; i < ncpus; i++) {
-                if (ums_schedulers[i]) {
-                        free(ums_schedulers[i]);
-                }
-        }
-        free(ums_schedulers);
 
         // Unregister ums process
         ioctl(dev_fd, TERMINATE_PROC);
 
         // Close IOCTL device
         close(dev_fd);
+
+        // Join scheduler
+        for (size_t i = 0; i < ncpus; i++) {
+                struct ums_sched *sched;
+
+                sched = ums_schedulers[i];
+                if (!sched) // The scheduler was not registered
+                        continue;
+                pthread_join(sched->ums_thread->pthread, NULL);
+                free(sched->ums_thread);
+                free(sched->worker_list);
+                free(sched);
+        }
+
+        // Join all workers
+        list_for_each_entry_safe(node, tmp, &global_list, list) {
+                pthread_join(node->worker->thread.pthread, NULL);
+                pthread_mutex_destroy(&node->worker->mutex);
+                list_del(&node->list);
+                free(node->worker);
+                free(node);
+        }
 
         return;
 }
@@ -123,6 +137,10 @@ int ums_worker_create (struct ums_worker *worker,
                 return FAILURE;
         }
 
+        // Insert worker in global list
+        ums_worker_list_insert(&global_list, worker);
+
+
         ret_pthread = pthread_create(&thread->pthread, NULL, worker_wrap_routine, wrapper_arg);
         if (ret_pthread != 0) {
                 perror("Creating pthread");
@@ -146,17 +164,7 @@ int ums_worker_create (struct ums_worker *worker,
         return SUCCESS;
 }
 
-int ums_worker_list_init(ums_list_head_t *head)
-{
-        INIT_LIST_HEAD(&head->list);
-        if (pthread_rwlock_init(&head->rwlock, NULL) != 0) {
-                perror("Creating rwlock for worker list head");
-                return FAILURE;
-        }
-        return SUCCESS;
-}
-
-int ums_worker_list_insert(ums_list_head_t *head, struct ums_worker *worker)
+int ums_worker_list_insert(struct list_head *head, struct ums_worker *worker)
 {
         ums_worker_node_t *worker_node = malloc(sizeof(*worker_node));
         if (!worker_node) {
@@ -164,32 +172,19 @@ int ums_worker_list_insert(ums_list_head_t *head, struct ums_worker *worker)
                 return FAILURE;
         }
         worker_node->worker = worker;
-        // Acquire list rwlock
-        if (pthread_rwlock_wrlock(&head->rwlock) != 0) {
-                perror("Getting head rwlock");
-                free(worker_node);
-                return FAILURE;
-        }
 
         // Get worker's mutex.
         pthread_mutex_lock(&worker->mutex);
         // Increment refcnt
         worker->refcnt++;
-        list_add(&worker_node->list, &head->list);
+        list_add(&worker_node->list, head);
         // Release mutex.
         pthread_mutex_unlock(&worker->mutex);
-
-        // Release list rwlock
-        if (pthread_rwlock_unlock(&head->rwlock) != 0) {
-                perror("Releasing head rwlock");
-                free(worker_node);
-                return FAILURE;
-        }
 
         return SUCCESS;
 }
 
-int EnterUmsSchedulingMode(void (*scheduler_routine)(), ums_list_head_t *worker_list)
+int EnterUmsSchedulingMode(void (*scheduler_routine)(), struct list_head *worker_list)
 {
         int cpuid, nworkers = 0, ret_pthread;
         ums_worker_node_t *worker_node;
@@ -216,7 +211,7 @@ int EnterUmsSchedulingMode(void (*scheduler_routine)(), ums_list_head_t *worker_
                 return FAILURE;
         }
         ums_schedulers[cpuid]->current_worker = NULL;
-        list_for_each(pos, &worker_list->list) {
+        list_for_each(pos, worker_list) {
                 nworkers++;
         }
         ums_schedulers[cpuid]->nworkers = (unsigned int)nworkers;
@@ -278,7 +273,7 @@ int EnterUmsSchedulingMode(void (*scheduler_routine)(), ums_list_head_t *worker_
         free(sched_arg->sem);
 
         // Register worker list.
-        list_for_each_entry(worker_node, &worker_list->list, list) {
+        list_for_each_entry(worker_node, worker_list, list) {
                 struct ums_usr_worker *usr_worker;
 
                 usr_worker = malloc(sizeof(*usr_worker));
