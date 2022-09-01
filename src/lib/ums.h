@@ -48,7 +48,7 @@ void ums_destroy(void);
  *  @return <0 if worker creation failed.
  */
 int ums_worker_create (struct ums_worker *worker,
-                       void *(*start_routine) (void *),
+                       void (*start_routine) (void *),
                        void *arg);
 
 /** @brief Inserts a ums_worker into a worker list.

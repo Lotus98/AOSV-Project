@@ -32,6 +32,9 @@ int ums_init ()
                 return FAILURE;
         }
 
+        // Initialize global_list
+        INIT_LIST_HEAD(&global_list);
+
         // Configure processors related information
         ncpus = (size_t)get_nprocs();
         cpus_map = DECLARE_BITMAP((unsigned long)ncpus);
@@ -39,7 +42,7 @@ int ums_init ()
                 perror("Allocating cpus_map during initialization");
                 return FAILURE;
         }
-        ums_schedulers = calloc((unsigned long)ncpus, sizeof(ums_schedulers));
+        ums_schedulers = calloc((unsigned long)ncpus, sizeof(struct ums_sched *));
         if (!ums_schedulers) {
                 perror("Allocating ums_schedulers during initialization");
                 free(cpus_map);
@@ -62,22 +65,14 @@ void ums_destroy ()
 {
         ums_worker_node_t *node, *tmp;
 
-        // Free bitmap
-        free(cpus_map);
-
-        // Unregister ums process
-        ioctl(dev_fd, TERMINATE_PROC);
-
-        // Close IOCTL device
-        close(dev_fd);
-
         // Join scheduler
         for (size_t i = 0; i < ncpus; i++) {
                 struct ums_sched *sched;
 
                 sched = ums_schedulers[i];
-                if (!sched) // The scheduler was not registered
+                if (!sched) {// The scheduler was not registered
                         continue;
+                }
                 pthread_join(sched->ums_thread->pthread, NULL);
                 free(sched->ums_thread);
                 free(sched->worker_list);
@@ -93,11 +88,21 @@ void ums_destroy ()
                 free(node);
         }
 
+        // Free bitmap
+        free(cpus_map);
+
+        PRINTDBG("Unregistering process\n");
+        // Unregister ums process
+        ioctl(dev_fd, TERMINATE_PROC);
+
+        // Close IOCTL device
+        close(dev_fd);
+
         return;
 }
 
 int ums_worker_create (struct ums_worker *worker,
-                       void *(*start_routine) (void *),
+                       void (*start_routine) (void *),
                        void *arg)
 {
         struct ums_worker_arg *wrapper_arg;
@@ -187,8 +192,7 @@ int ums_worker_list_insert(struct list_head *head, struct ums_worker *worker)
 int EnterUmsSchedulingMode(void (*scheduler_routine)(), struct list_head *worker_list)
 {
         int cpuid, nworkers = 0, ret_pthread;
-        ums_worker_node_t *worker_node;
-        struct list_head *pos;
+        struct list_head *pos, *sched_worker_list;
         struct ums_sched_arg *sched_arg;
 
         cpuid = find_next_zero_bit(cpus_map, ncpus);
@@ -214,8 +218,9 @@ int EnterUmsSchedulingMode(void (*scheduler_routine)(), struct list_head *worker
         list_for_each(pos, worker_list) {
                 nworkers++;
         }
+        sched_worker_list = dup_worker_list(worker_list);
         ums_schedulers[cpuid]->nworkers = (unsigned int)nworkers;
-        ums_schedulers[cpuid]->worker_list = worker_list;
+        ums_schedulers[cpuid]->worker_list = sched_worker_list;
         // Initilized by the wrapper
         ums_schedulers[cpuid]->ums_thread->tid = -1;
 
@@ -229,6 +234,7 @@ int EnterUmsSchedulingMode(void (*scheduler_routine)(), struct list_head *worker
                 return FAILURE;
         }
         sched_arg->ums_thread = ums_schedulers[cpuid]->ums_thread;
+        sched_arg->list = sched_worker_list;
         sched_arg->sched_routine = scheduler_routine;
         sched_arg->cpuid = (unsigned int)cpuid;
         sched_arg->sem = malloc(sizeof(*sched_arg->sem));
@@ -261,27 +267,16 @@ int EnterUmsSchedulingMode(void (*scheduler_routine)(), struct list_head *worker
                 UNSET_BIT(cpus_map, cpuid);
                 return ret_pthread;
         }
-        // Wait for the ums_thread->tid to be populated and for the scheduler to be registered.
+        // Wait for the ums_thread->tid to be populated and for scheduler and list registration
         if (sem_wait(sched_arg->sem) != 0) {
                 perror("[Main thread] Waiting on semaphore");
                 abort();
         }
         // Destroy semaphore (it is not needed anymore)
         if (sem_destroy(sched_arg->sem) != 0) {
-                perror("[Main thread] Destroying semaphore");
+                perror("[Scheduler thread] Destroying semaphore");
         }
         free(sched_arg->sem);
-
-        // Register worker list.
-        list_for_each_entry(worker_node, worker_list, list) {
-                struct ums_usr_worker *usr_worker;
-
-                usr_worker = malloc(sizeof(*usr_worker));
-                usr_worker->tid = worker_node->worker->thread.tid;
-                usr_worker->cpuid = (unsigned int)cpuid;
-                ioctl(dev_fd, REGISTER_WORKER, usr_worker);
-                free(usr_worker);
-        }
 
         return SUCCESS;
 }
@@ -304,8 +299,9 @@ int ExecuteUmsThread (struct ums_worker *worker)
         // Set current_worker.
         ums_schedulers[cpuid]->current_worker = worker;
 
+        puts("Going to execute thread now");
         retval = ioctl(dev_fd, EXECUTE_THREAD, &worker->thread.tid);
-        if (!retval) {
+        if (retval) {
                 perror("Couldn't execute given worker");
                 ums_schedulers[cpuid]->current_worker = NULL;
                 return FAILURE;
@@ -339,6 +335,7 @@ struct list_head *DequeueUmsCompletionListItems (void)
 {
         struct list_head *head = NULL;
         ums_worker_node_t *worker_node;
+        struct ums_worker *worker;
         unsigned int *tid_list, cpuid;
 
         getcpu(&cpuid, NULL);
@@ -354,16 +351,24 @@ struct list_head *DequeueUmsCompletionListItems (void)
 
         // Create list
         head = malloc(sizeof(*head));
-        for (size_t i = 1; i <= ums_schedulers[cpuid]->nworkers; i++) {
-                if (tid_list[i] == 0)
+        INIT_LIST_HEAD(head);
+        PRINTDBG("Creating list\n");
+        for (size_t i = 1; i <= tid_list[0]; i++) {
+                if (tid_list[i] == 0) {
+                        PRINTDBG("No more workers\n");
                         break;
-                worker_node = find_worker_tid(ums_schedulers[cpuid]->worker_list, (pid_t)tid_list[i]);
-                if (!worker_node) {
+                }
+                PRINTDBG("Searching worker[TID]: %d\n", tid_list[i]);
+                worker = find_worker_tid(ums_schedulers[cpuid]->worker_list, (pid_t)tid_list[i]);
+                if (!worker) {
                         fprintf(stderr, "Worker[TID]: %d not found in scheduler[ID]: %d\n", tid_list[i], cpuid);
                         continue;
                 }
+                worker_node = malloc(sizeof(*worker_node));
+                worker_node->worker = worker;
                 list_add(&worker_node->list, head);
         }
+        PRINTDBG("List created\n");
 
         return head;
 }

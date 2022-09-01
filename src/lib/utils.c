@@ -59,7 +59,10 @@ void *worker_wrap_routine (void *arg)
         }
 
         // Initialize worker and set it to IDLE state.
-        ioctl(dev_fd, INIT_WORKER);
+        if (ioctl(dev_fd, INIT_WORKER) != SUCCESS) {
+                perror("Initializing worker");
+                pthread_exit(NULL);
+        }
 
         // Execute worker function.
         wrap_arg->ums_routine(wrap_arg->arg);
@@ -89,6 +92,7 @@ void *sched_wrap_routine (void *arg)
 {
         long retval;
         struct ums_sched_arg *wrap_arg = (struct ums_sched_arg *)arg;
+        ums_worker_node_t *worker_node;
 
         // Get TID
         wrap_arg->ums_thread->tid = gettid();
@@ -101,20 +105,37 @@ void *sched_wrap_routine (void *arg)
                 pthread_exit(NULL);
         }
 
-        // Signal on the semaphore so main thread can start registering workers.
+        // Register worker list.
+        list_for_each_entry(worker_node, wrap_arg->list, list) {
+                struct ums_usr_worker *usr_worker;
+
+                usr_worker = malloc(sizeof(*usr_worker));
+                if (!usr_worker) {
+                        perror("Allocating usr_worker to register worker in LKM");
+                }
+                usr_worker->tid = worker_node->worker->thread.tid;
+                usr_worker->cpuid = (unsigned int)wrap_arg->cpuid;
+                ioctl(dev_fd, REGISTER_WORKER, usr_worker);
+                free(usr_worker);
+        }
+
+        // Signal on the semaphore so main thread can continue.
         if (sem_post(wrap_arg->sem) != 0) {
                 perror("Incrementing semaphore");
                 pthread_exit(NULL);
         }
+
+
         // Execute scheduler
         wrap_arg->sched_routine();
 
         /* POST-ROUTINE PROCEDURE : */
         struct ums_sched *scheduler = ums_schedulers[wrap_arg->cpuid];
-        ums_worker_node_t *worker_node, *tmp;
+        ums_worker_node_t *tmp;
         struct ums_worker *worker;
 
         // Cleanup completion list
+        PRINTDBG("Cleaning up scheduler's completion list\n");
         list_for_each_entry_safe(worker_node, tmp, scheduler->worker_list, list) {
                 worker = worker_node->worker;
                 pthread_mutex_lock(&worker->mutex);
@@ -135,6 +156,7 @@ void *sched_wrap_routine (void *arg)
         // Cleanup
         free(wrap_arg);
 
+        PRINTDBG("Scheduler is terminated\n");
         return NULL;
 }
 
@@ -150,15 +172,32 @@ int find_next_zero_bit(unsigned long *map, size_t size)
         return index;
 }
 
-ums_worker_node_t *find_worker_tid (struct list_head *head, pid_t tid)
+struct ums_worker *find_worker_tid (struct list_head *head, pid_t tid)
 {
         ums_worker_node_t *worker_node;
 
         list_for_each_entry(worker_node, head, list) {
                 if (worker_node->worker->thread.tid == tid) {
-                        return worker_node;
+                        return worker_node->worker;
                 }
         }
 
         return NULL;
+}
+
+struct list_head *dup_worker_list (struct list_head *head) {
+        struct list_head *dup_head;
+        ums_worker_node_t *node;
+
+        // Initialize head of dup list.
+        dup_head = malloc(sizeof(*dup_head));
+        INIT_LIST_HEAD(dup_head);
+
+        list_for_each_entry(node, head, list) {
+                ums_worker_node_t *new_node = malloc(sizeof(*new_node));
+                new_node->worker = node->worker;
+                list_add_tail(&new_node->list, dup_head);
+        }
+
+        return dup_head;
 }

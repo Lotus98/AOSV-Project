@@ -67,7 +67,7 @@ struct ums_thread {
 struct ums_worker_arg {
         /// The reference to the struct ums_thread corresponding to the worker.
         struct ums_thread *ums_thread;
-        void *(*ums_routine) (void *); ///< The routine passed to ums_worker_create.
+        void (*ums_routine) (void *); ///< The routine passed to ums_worker_create.
         void *arg; ///< The argument passed to ums_worker_create.
         sem_t *tid_sem; ///< Semaphore used to coordinate ums_thread->tid population.
 };
@@ -75,6 +75,7 @@ struct ums_worker_arg {
 struct ums_sched_arg {
         struct ums_thread *ums_thread;
         void (*sched_routine) (void); ///< The scheduler function.
+        struct list_head *list; /// The head of the completion list.
         unsigned int cpuid; ///< The CPU to which the thread will be bound.
         sem_t *sem; ///< Semaphore used to coordinate the main thread with the scheduler thread.
 };

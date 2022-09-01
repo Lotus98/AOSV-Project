@@ -53,6 +53,12 @@ int find_next_zero_bit(unsigned long *map, size_t size);
  *  @return NULL: If there is no worker with such tid.
  *  @return ums_worker_node_t *: The wanted worker.
  */
-ums_worker_node_t *find_worker_tid (struct list_head *head, pid_t tid);
+struct ums_worker *find_worker_tid (struct list_head *head, pid_t tid);
+
+/** @brief Duplicates the given completion list.
+ *  @param head: The head of the original list that needs to be duplicated.
+ *  @return struct list_head *: The new head of the duplicate.
+ */
+struct list_head *dup_worker_list (struct list_head *head);
 
 #endif // !LIB_UTILS_H
