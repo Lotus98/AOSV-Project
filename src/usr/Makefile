@@ -1,6 +1,14 @@
 CC = gcc
 TARGET = app
 
+# Comment to disable/enable debugging
+DEBUG = y
+ifeq ($(DEBUG), y)
+	CFLAGS += -Og -g
+else
+	CFLAGS += -O2
+endif
+
 CFLAGS += -std=c11 -Wall -Wextra
 LDFLAGS += -pthread
 
