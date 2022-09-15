@@ -17,6 +17,7 @@
 #include "linux/kernel.h"
 #include "linux/kref.h"
 #include "linux/list.h"
+#include "linux/lockdep.h"
 #include "linux/pid.h"
 #include "linux/printk.h"
 #include "linux/sched.h"
@@ -73,7 +74,7 @@ static struct ums_worker *get_worker (struct ums_proc *process, pid_t tid) {
         return worker;
 }
 
-static bool wait_queue_check ()
+static bool wait_queue_check (void)
 {
         struct ums_proc *process;
         struct ums_sched *sched;
@@ -81,6 +82,7 @@ static bool wait_queue_check ()
         bool terminated = true;
         ums_worker_node_t *worker_node;
 
+        PRINTDBG("Checking wait queue condition");
         // Get data structs
         process = find_ums_proc(current->tgid);
         sched = process->schedulers[current->cpu];
@@ -88,7 +90,7 @@ static bool wait_queue_check ()
         // Check if there are idle workers
         hash_for_each(sched->worker_list, bkt, worker_node, node) {
                 read_lock(&worker_node->worker->rwlock);
-                if (worker_node->worker->state == WORKER_IDLE) {
+                if (worker_node->worker->state == WORKER_IDLE && !worker_node->worker->scheduled) {
                         read_unlock(&worker_node->worker->rwlock);
                         return true;
                 }
@@ -96,10 +98,8 @@ static bool wait_queue_check ()
                         terminated = false;
                 read_unlock(&worker_node->worker->rwlock);
         }
-        if (terminated)
-                return true;
-        else
-                return false;
+
+        return terminated;
 }
 
 long register_ums_process (pid_t pid)
@@ -145,12 +145,10 @@ long terminate_ums_process (pid_t pid)
         int bkt;
 
         // Find the struct ums_proc of the PID
-        PRINTDBG("Finding the ums_proc struct for process[PID]: %d", pid);
         process = find_ums_proc(pid);
         if (!process) // The process is not registered
                 return -ESRCH;
 
-        PRINTDBG("Found ums_proc process: %d", process->pid);
         // Remove node from the hashtable
         hash_del(&process->node);
 
@@ -171,15 +169,12 @@ long terminate_ums_process (pid_t pid)
         }
 
         // Clear the worker hashtable saved in the ums_proc struct (no need to lock, this is the last thread)
-        PRINTDBG("Preparing to remove and wakeup all workers");
         hash_for_each_safe(process->workers, bkt, tmp, worker_node, node) {
-                /* TEST (This code is used to test workers creation)*/
-                // PRINTDBG("Waking up worker[TID]: %d\n", worker_node->tid);
                 // Cleanup any dangling worker.
                 if (worker_node->worker->state != WORKER_TERMINATED) {
+                        PRINTDBG("Waking up worker[TID]: %d", worker_node->tid);
                         wake_up_process(worker_node->worker->task);
                 }
-                /* END TEST */
                 kref_put(&worker_node->worker->refcnt, worker_release); // This is the one freeing the ums_worker
                 hash_del(&worker_node->node);
                 kfree(worker_node);
@@ -187,6 +182,14 @@ long terminate_ums_process (pid_t pid)
         kfree(process);
 
         return SUCCESS;
+}
+
+void worker_release (struct kref *refcnt)
+{
+        struct ums_worker *worker = container_of(refcnt, struct ums_worker, refcnt);
+        kfree(worker);
+
+        return;
 }
 
 long init_worker_node (void)
@@ -211,6 +214,7 @@ long init_worker_node (void)
         task = current;
         worker->task = task;
         worker->state = WORKER_IDLE;
+        worker->scheduled = false;
         rwlock_init(&worker->rwlock);
         kref_init(&worker->refcnt);
 
@@ -319,6 +323,7 @@ long execute_thread (pid_t tid)
         struct ums_sched *scheduler;
         ums_worker_node_t *worker_node;
 
+        PRINTDBG("Ready to execute thread");
         process = find_ums_proc(current->tgid);
         scheduler = process->schedulers[cpuid];
         // Take a read lock on the scheduler's hashtable
@@ -332,7 +337,7 @@ long execute_thread (pid_t tid)
         // Release worker list lock
         read_unlock(&scheduler->lock);
 
-        // Acquire spinlock on worker.
+        // Acquire rwlock on worker.
         write_lock(&worker_node->worker->rwlock);
         if (worker_node->worker->state != WORKER_IDLE) {
                 write_unlock(&worker_node->worker->rwlock);
@@ -375,6 +380,7 @@ void thread_yield ()
         write_lock(&worker->rwlock);
         // Change state
         worker->state = WORKER_IDLE;
+        worker->scheduled = false;
         // Release worker lock.
         write_unlock(&worker->rwlock);
 
@@ -384,7 +390,7 @@ void thread_yield ()
         return;
 }
 
-void dequeue_list (unsigned int *tid_list)
+void dequeue_list (size_t size, unsigned int *tid_list)
 {
         struct ums_proc *process;
         struct ums_sched *scheduler;
@@ -392,6 +398,7 @@ void dequeue_list (unsigned int *tid_list)
         bool terminated;
         ums_worker_node_t *worker_node;
 
+        PRINTDBG("Ready to dequeue the list");
         process = find_ums_proc(current->tgid);
         scheduler = process->schedulers[current->cpu];
         tid_list[0] = 0; // The number of available workers
@@ -403,16 +410,22 @@ void dequeue_list (unsigned int *tid_list)
 
                 // Start populating tid_list
                 hash_for_each(scheduler->worker_list, bkt, worker_node, node) {
-                        read_lock(&worker_node->worker->rwlock);
-                        if (worker_node->worker->state == WORKER_RUNNING)
+                        if (size <= tid_list[0]) {
+                                break;
+                        }
+                        write_lock(&worker_node->worker->rwlock);
+                        if (worker_node->worker->state == WORKER_RUNNING && terminated)
                                 terminated = false;
-                        else if (worker_node->worker->state == WORKER_IDLE) {
+                        else if (worker_node->worker->state == WORKER_IDLE && !worker_node->worker->scheduled) {
+                                PRINTDBG("Found worker to put in queue: [TID]: %d", worker_node->tid);
+                                worker_node->worker->scheduled = true;
                                 tid_list[++tid_list[0]] = worker_node->tid;
                         }
-                        read_unlock(&worker_node->worker->rwlock);
+                        write_unlock(&worker_node->worker->rwlock);
                 }
 
         } while (!terminated && (tid_list[0] == 0) );
+        PRINTDBG("Returning dequeue list");
 
         return;
 }
@@ -442,6 +455,7 @@ void terminate_worker (void)
         write_lock(&worker->rwlock);
         // Change state
         worker->state = WORKER_TERMINATED;
+        worker->scheduled = false;
         // Release worker lock.
         write_unlock(&worker->rwlock);
 
@@ -450,14 +464,6 @@ void terminate_worker (void)
 
         // Wake up thread process.
         wake_up_process(worker->task);
-
-        return;
-}
-
-void worker_release (struct kref *refcnt)
-{
-        struct ums_worker *worker = container_of(refcnt, struct ums_worker, refcnt);
-        kfree(worker);
 
         return;
 }

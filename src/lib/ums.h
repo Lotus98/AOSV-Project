@@ -89,9 +89,10 @@ int UmsThreadYield (void);
  *  with other completion lists, on different schedulers. To get a new valid list
  *  a new call to this function must be performed.
  *
- *  @return struct list_head *: A pointer to a list head that will contain valid workers.
+ *  @param nworkers: The number of workers wanted in the queue. If the value is either equal to 0 or greater then the number available workers, the latter value will be used instead.
+ *  @return struct list_head *: A pointer to a list head that will contain valid workers. The list has to be freed by the user.
  *  @return NULL: If all workers on the scheduler's completion list are terminated.
  */
-struct list_head *DequeueUmsCompletionListItems (void);
+struct list_head *DequeueUmsCompletionListItems (size_t nworkers);
 
 #endif // !LIB_UMS_H

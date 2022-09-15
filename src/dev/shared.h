@@ -35,7 +35,7 @@
 enum state {WORKER_RUNNING, WORKER_IDLE, WORKER_TERMINATED};
 
 // #ifndef PRINTDBG
-#define PRINTDBG(fmt, args...) pr_debug(LOG_MSG fmt, ##args)
+#define PRINTDBG(fmt, args...) pr_debug(LOG_MSG "CPU[%d]" fmt "\n", current->cpu, ##args)
 // #endif // !PRINTDBG
 
 
@@ -75,6 +75,7 @@ struct ums_sched {
 struct ums_worker {
         struct task_struct *task; ///< The task_struct of the thread.
         enum state state; ///< The current state of the worker.
+        bool scheduled; ///< A boolean stating if the worker is already dequeued and ready to be executed by a scheduler.
         struct kref refcnt; ///< Reference counter for the worker.
         rwlock_t rwlock; ///< Lock used to keep coherent the state of a worker.
 };

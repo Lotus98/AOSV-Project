@@ -35,10 +35,10 @@ long ums_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
                         return retval;
                 }
                 // Change state of worker task so it is not scheduled by the kernel
-                PRINTDBG("Going to sleep, from worker[TID]: %d\n", current->pid);
+                PRINTDBG("Going to sleep, from worker[TID]: %d", current->pid);
                 __set_current_state(TASK_IDLE);
                 schedule();
-                PRINTDBG("I'm awake, from worker[TID]: %d\n", current->pid);
+                PRINTDBG("I'm awake, from worker[TID]: %d", current->pid);
                 break;
         case REGISTER_PROC:
                 pid = current->tgid;
@@ -98,11 +98,11 @@ long ums_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
                         pr_err(LOG_MSG "Error in copy_from_user DEQUEUE_LIST\n");
                         return -EFAULT;
                 }
-                tid_list = kcalloc(ntids, sizeof(*tid_list), GFP_KERNEL);
+                tid_list = kcalloc(ntids+1, sizeof(*tid_list), GFP_KERNEL);
 
-                dequeue_list(tid_list);
+                dequeue_list(ntids, tid_list);
 
-                if (copy_to_user((unsigned int *)arg, tid_list, ntids * sizeof(*tid_list)) != 0) {
+                if (copy_to_user((unsigned int *)arg, tid_list, (ntids+1) * sizeof(*tid_list)) != 0) {
                         pr_err(LOG_MSG "Error in copy_from_user DEQUEUE_LIST\n");
                         kfree(tid_list);
                         return -EFAULT;

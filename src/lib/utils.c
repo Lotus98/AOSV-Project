@@ -7,6 +7,7 @@
 #include "utils.h"
 #include "list.h"
 #include "shared.h"
+#include "ums.h"
 #include <pthread.h>
 #include <sched.h>
 #include <stdio.h>
@@ -80,7 +81,9 @@ void *worker_wrap_routine (void *arg)
         pthread_mutex_unlock(&worker->mutex);
 
         // IOCTL call to restore scheduler and terminate worker.
+        PRINTDBG("Worker(TID)[%d]: Calling IOCTL TERMINATE_WORKER\n", wrap_arg->ums_thread->tid);
         ioctl(dev_fd, TERMINATE_WORKER);
+        PRINTDBG("Worker(TID)[%d]: Terminated its execution\n", wrap_arg->ums_thread->tid);
 
         // Cleanup
         free(wrap_arg);
@@ -135,10 +138,14 @@ void *sched_wrap_routine (void *arg)
         struct ums_worker *worker;
 
         // Cleanup completion list
-        PRINTDBG("Cleaning up scheduler's completion list\n");
+        unsigned int __cpuid;
+        getcpu(&__cpuid, NULL);
+        PRINTDBG("CPU[%d] Cleaning up scheduler's completion list\n", __cpuid);
         list_for_each_entry_safe(worker_node, tmp, scheduler->worker_list, list) {
                 worker = worker_node->worker;
+                PRINTDBG("CPU[%d] Taking mutex lock for worker(TID)[%d]\n", __cpuid, worker->thread.tid);
                 pthread_mutex_lock(&worker->mutex);
+                PRINTDBG("CPU[%d] Decrementing refcnt to: %lu\n", __cpuid, worker->refcnt - 1);
                 worker->refcnt--;
                 if (worker->refcnt == 0) { // This should not happen
                         PRINTDBG("If this is happening you broke the global list");
@@ -147,16 +154,20 @@ void *sched_wrap_routine (void *arg)
                         // Join worker's pthread
                         pthread_join(worker->thread.pthread, NULL);
                         free(worker);
-                } else
+                } else {
+                        PRINTDBG("CPU[%d] Releasing mutex lock\n", __cpuid);
                         pthread_mutex_unlock(&worker->mutex);
+                }
+                PRINTDBG("CPU[%d] Deleting node from list\n", __cpuid);
                 list_del(&worker_node->list);
+                PRINTDBG("CPU[%d] Freeing node\n", __cpuid);
                 free(worker_node);
         }
 
         // Cleanup
         free(wrap_arg);
 
-        PRINTDBG("Scheduler is terminated\n");
+        PRINTDBG("CPU[%d] Scheduler is terminated\n", __cpuid);
         return NULL;
 }
 
@@ -194,9 +205,7 @@ struct list_head *dup_worker_list (struct list_head *head) {
         INIT_LIST_HEAD(dup_head);
 
         list_for_each_entry(node, head, list) {
-                ums_worker_node_t *new_node = malloc(sizeof(*new_node));
-                new_node->worker = node->worker;
-                list_add_tail(&new_node->list, dup_head);
+                ums_worker_list_insert(dup_head, node->worker);
         }
 
         return dup_head;

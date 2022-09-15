@@ -36,7 +36,7 @@
 
 #undef PRINTDBG
 #ifdef DEBUG
-#define PRINTDBG(...) fprintf(stderr, "[DEBUG]" __VA_ARGS__)
+#define PRINTDBG(...) fprintf(stderr, "[Lib]: " __VA_ARGS__)
 #else
 #define PRINTDBG(...) do {} while(0)
 #endif // DEBUG

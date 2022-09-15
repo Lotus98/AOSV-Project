@@ -63,9 +63,10 @@ long execute_thread (pid_t tid);
 void thread_yield (void);
 
 /** @brief Populates the array with the available worker's using their TIDs.
+ *  @param size: The size of the array.
  *  @param tid_list: The array to be populated.
  */
-void dequeue_list (unsigned int *tid_list);
+void dequeue_list (size_t size, unsigned int *tid_list);
 
 /// @brief Terminates the current worker and restores the scheduler hosting it.
 void terminate_worker (void);

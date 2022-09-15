@@ -26,6 +26,7 @@
 
 int ums_init ()
 {
+        PRINTDBG("Initializing UMS session\n");
         // Open IOCTL device
         dev_fd = open_device();
         if (dev_fd < 0) {
@@ -65,6 +66,7 @@ void ums_destroy ()
 {
         ums_worker_node_t *node, *tmp;
 
+        PRINTDBG("Terminating UMS session\n");
         // Join scheduler
         for (size_t i = 0; i < ncpus; i++) {
                 struct ums_sched *sched;
@@ -191,6 +193,9 @@ int ums_worker_list_insert(struct list_head *head, struct ums_worker *worker)
 
 int EnterUmsSchedulingMode(void (*scheduler_routine)(), struct list_head *worker_list)
 {
+        unsigned int __cpuid;
+        getcpu(&__cpuid, NULL);
+        PRINTDBG("CPU[%d] Entering Scheduling mode\n", __cpuid);
         int cpuid, nworkers = 0, ret_pthread;
         struct list_head *pos, *sched_worker_list;
         struct ums_sched_arg *sched_arg;
@@ -283,6 +288,9 @@ int EnterUmsSchedulingMode(void (*scheduler_routine)(), struct list_head *worker
 
 int ExecuteUmsThread (struct ums_worker *worker)
 {
+        unsigned int __cpuid;
+        getcpu(&__cpuid, NULL);
+        PRINTDBG("CPU[%d] Executing thread\n", __cpuid);
         unsigned int cpuid;
         long retval;
 
@@ -312,6 +320,9 @@ int ExecuteUmsThread (struct ums_worker *worker)
 
 int UmsThreadYield (void)
 {
+        unsigned int __cpuid;
+        getcpu(&__cpuid, NULL);
+        PRINTDBG("CPU[%d] Yielding thread\n", __cpuid);
         unsigned int cpuid;
         struct ums_worker *worker;
 
@@ -331,18 +342,24 @@ int UmsThreadYield (void)
         return SUCCESS;
 }
 
-struct list_head *DequeueUmsCompletionListItems (void)
+struct list_head *DequeueUmsCompletionListItems (size_t nworkers)
 {
+        unsigned int __cpuid;
+        getcpu(&__cpuid, NULL);
+        PRINTDBG("CPU[%d] Dequeing list\n", __cpuid);
         struct list_head *head = NULL;
         ums_worker_node_t *worker_node;
         struct ums_worker *worker;
         unsigned int *tid_list, cpuid;
 
         getcpu(&cpuid, NULL);
+        if (nworkers > ums_schedulers[cpuid]->nworkers || nworkers == 0) {
+                nworkers = ums_schedulers[cpuid]->nworkers;
+        }
         // The "+ 1" is to get the number of available workers
-        tid_list = calloc(ums_schedulers[cpuid]->nworkers + 1, sizeof(*tid_list));
+        tid_list = calloc(nworkers + 1, sizeof(*tid_list));
         // In the first position copy the nmemb size of the array. (Little hack for LKM)
-        *tid_list = ums_schedulers[cpuid]->nworkers;
+        *tid_list = (unsigned int)nworkers;
 
         // IOCTL call
         ioctl(dev_fd, DEQUEUE_LIST, tid_list);
@@ -352,13 +369,13 @@ struct list_head *DequeueUmsCompletionListItems (void)
         // Create list
         head = malloc(sizeof(*head));
         INIT_LIST_HEAD(head);
-        PRINTDBG("Creating list\n");
+        PRINTDBG("CPU[%d] Creating list\n", __cpuid);
         for (size_t i = 1; i <= tid_list[0]; i++) {
                 if (tid_list[i] == 0) {
-                        PRINTDBG("No more workers\n");
+                        PRINTDBG("CPU[%d] No more workers\n", __cpuid);
                         break;
                 }
-                PRINTDBG("Searching worker[TID]: %d\n", tid_list[i]);
+                PRINTDBG("CPU[%d] Searching worker[TID]: %d\n", __cpuid, tid_list[i]);
                 worker = find_worker_tid(ums_schedulers[cpuid]->worker_list, (pid_t)tid_list[i]);
                 if (!worker) {
                         fprintf(stderr, "Worker[TID]: %d not found in scheduler[ID]: %d\n", tid_list[i], cpuid);
@@ -368,7 +385,7 @@ struct list_head *DequeueUmsCompletionListItems (void)
                 worker_node->worker = worker;
                 list_add(&worker_node->list, head);
         }
-        PRINTDBG("List created\n");
+        PRINTDBG("CPU[%d] List created\n", __cpuid);
 
         return head;
 }
