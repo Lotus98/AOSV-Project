@@ -6,7 +6,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#define WORKERS 1000
+#define WORKERS 5
 
 void fun ()
 {
@@ -73,6 +73,7 @@ int main (void)
 
         // Terminate UMS session
         puts("Waiting for session to terminate");
+        sleep(30);
         ums_destroy();
         puts("Session terminated correctly");
 

@@ -10,8 +10,12 @@
 #include <linux/fs.h>
 #include <linux/miscdevice.h>
 #include "linux/hashtable.h"
+#include "linux/list.h"
+#include "linux/proc_fs.h"
+#include "procfs.h"
 #include "shared.h"
 #include "ioctl.h"
+#include "utils.h"
 
 static const struct file_operations ums_fops = {
         .owner = THIS_MODULE,
@@ -34,16 +38,31 @@ static int __init init_umsmodule(void)
                 pr_err(LOG_MSG "Registering misc device failed\n");
                 return error;
         }
-        pr_info(LOG_MSG "Misc device registered successfully!\n");
 
         // Get number of online CPUs.
         ncpus = num_online_cpus();
+
+        // Initialize procfs
+        procfs_base_dir = init_procfs();
+        if (!procfs_base_dir) {
+                pr_err(LOG_MSG "Error initializing /proc/ums dir\n");
+                return -1;
+        }
+        pr_info(LOG_MSG "Misc device registered successfully!\n");
 
         return 0;
 }
 
 static void __exit exit_umsmodule(void)
 {
+        struct ums_proc *process;
+
+        proc_remove(procfs_base_dir);
+        // Cleanup
+        hlist_for_each_entry(process, ums_procs, node) {
+                terminate_ums_process(process->pid);
+        }
+
         misc_deregister(&ums_misc_dev);
         pr_info(KERN_INFO LOG_MSG "Exit\n");
         return;

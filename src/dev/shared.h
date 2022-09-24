@@ -11,6 +11,8 @@
 #define DEV_SHARED_H
 
 #include "asm/ptrace.h"
+#include "linux/ktime.h"
+#include "linux/proc_fs.h"
 #include "linux/spinlock_types.h"
 #include <asm-generic/errno.h>
 #include <linux/printk.h>
@@ -39,7 +41,7 @@ enum state {WORKER_RUNNING, WORKER_IDLE, WORKER_TERMINATED};
 // #endif // !PRINTDBG
 
 
-// Data structures
+// Data structures needed for the functioning of the module.
 /// Defines the components that identify a process using UMS.
 struct ums_proc {
         struct ums_sched **schedulers; ///< An array of pointers representing all the active scheduler threads.
@@ -60,6 +62,7 @@ struct ums_proc {
          *  a scheduler's list is terminated or there is an idle one.
          */
         wait_queue_head_t wq;
+        struct procfs_proc_umsdata *proc_data; ///< The procfs data relative to the process.
 };
 
 /// Defines a scheduler thread.
@@ -69,6 +72,7 @@ struct ums_sched {
         struct pt_regs sched_regs; ///< Backup of the scheduler's state, used in the context switch.
         DECLARE_HASHTABLE(worker_list, HBITS); ///< The completion list (implemented as an hashtable).
         rwlock_t lock; ///< Lock for the hashtable.
+        struct procfs_sched_umsdata *sched_data; ///< The procfs data of the scheduler.
 };
 
 /// Defines a worker thread.
@@ -78,6 +82,7 @@ struct ums_worker {
         bool scheduled; ///< A boolean stating if the worker is already dequeued and ready to be executed by a scheduler.
         struct kref refcnt; ///< Reference counter for the worker.
         rwlock_t rwlock; ///< Lock used to keep coherent the state of a worker.
+        struct procfs_worker_umsdata *worker_data; ///< The procfs data of the worker.
 };
 
 /// Defines an hashtable node representing a worker.
@@ -85,12 +90,39 @@ typedef struct ums_worker_node {
         struct ums_worker *worker;
         pid_t tid; ///< The key for hashtables. Provides also quicker access to worker TID.
         struct hlist_node node; ///< The node of the hashtable's bucket.
+        /** The file entry containing worker informations. It is different for every scheduler but has the same
+         *  data depending on the worker.
+         */
+        struct proc_dir_entry *info_file;
 } ums_worker_node_t;
 
 /// Defines a tuple used to send worker thread registration informations to the LKM.
 struct ums_usr_worker {
         unsigned int cpuid; ///< The cpuid related to the scheduler on which we are registering the worker.
         pid_t tid; ///< The TID of the target worker.
+};
+
+// Data structures needed to manage the procfs components.
+/// Structure defining the data needed by a process to manage its procfs instance.
+struct procfs_proc_umsdata {
+        struct proc_dir_entry *proc_dir; ///< Process directory (/proc/ums/<pid>/).
+        struct proc_dir_entry *scheds_dir; ///< Schedulers directory (/proc/ums/<pid>/schedulers/).
+};
+
+/// Structure defining the procfs data of a scheduler.
+struct procfs_sched_umsdata {
+        struct proc_dir_entry *sched_dir; ///< Scheduler's directory (/proc/ums/<pid>/schedulers/<id>/).
+        struct proc_dir_entry *workers_dir; ///< Workers directory (/proc/ums/<pid>/schedulers/<id>/workers/).
+        struct proc_dir_entry *info_file; ///< Scheduler's informations and statistics.
+        unsigned long num_switches; ///< The total number of context switches performed.
+        ktime_t last_switch; ///< The time required to perform the last context switch.
+};
+
+/// Structure defining the procfs data of a worker.
+struct procfs_worker_umsdata {
+        ktime_t tot_running; ///< The total running time of the worker.
+        ktime_t start_time; ///< The time which the worker started running.
+        unsigned long num_switches; ///< The total number of context switches performed.
 };
 
 

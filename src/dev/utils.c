@@ -4,7 +4,9 @@
  *  @author Nalin Dhingra (Lotus98)
  *  @bug No known bugs.
  */
+#include "procfs.h"
 #include "utils.h"
+#include "shared.h"
 #include "asm-generic/errno-base.h"
 #include "asm-generic/errno.h"
 #include "asm/current.h"
@@ -20,25 +22,27 @@
 #include "linux/lockdep.h"
 #include "linux/pid.h"
 #include "linux/printk.h"
+#include "linux/proc_fs.h"
 #include "linux/sched.h"
 #include "linux/spinlock.h"
 #include "linux/stddef.h"
 #include "linux/types.h"
 #include "linux/wait.h"
-#include "shared.h"
 #include <linux/slab.h>
 #include <linux/sched/task.h>
 #include <linux/sched/task_stack.h>
+#include <linux/timekeeping.h>
 
-static struct ums_proc *find_ums_proc (pid_t pid)
+static const struct proc_ops sched_proc_ops = {
+        .proc_read = sched_proc_read,
+};
+
+static const struct proc_ops worker_proc_ops = {
+        .proc_read = worker_proc_read,
+};
+
+struct ums_proc *find_ums_proc (pid_t pid)
 {
-        // /** @brief Finds a UMS process given its PID.
-        //  *  @param pid: The pid of the process that holds resources (TGID).
-        //  *  @return struct ums_proc: The wanted ums_proc struct.
-        //  *  @return NULL: If the process is not in the UMS processes hashtable.
-        //  */
-        // struct ums_proc *find_ums_proc (pid_t pid);
-
         struct ums_proc *process;
 
         // Find the corresponding structure
@@ -105,6 +109,7 @@ static bool wait_queue_check (void)
 long register_ums_process (pid_t pid)
 {
         struct ums_proc *process;
+        char procbuf[8];
 
         // Look if process is already registered
         process = find_ums_proc(pid);
@@ -133,6 +138,15 @@ long register_ums_process (pid_t pid)
 
         // Insert node in the processes hashtable
         hash_add(ums_procs, &process->node, process->pid);
+
+        // PROCFS stuff
+        process->proc_data = kmalloc(sizeof(*process->proc_data), GFP_KERNEL);
+        // Initialize procfs structures for process
+        snprintf(procbuf, sizeof(procbuf), "%d", pid);
+        // Create /proc/usm/<pid> directory
+        process->proc_data->proc_dir = proc_mkdir(procbuf, procfs_base_dir);
+        // Create schedulers directory
+        process->proc_data->scheds_dir = proc_mkdir("schedulers", process->proc_data->proc_dir);
 
         return SUCCESS;
 }
@@ -233,6 +247,9 @@ long init_worker_node (void)
         hash_add(process->workers, &worker_node->node, tid);
         write_unlock(&process->hash_lock);
 
+        // PROCFS stuff
+        worker->worker_data = kmalloc(sizeof(*worker->worker_data), GFP_KERNEL);
+
         return SUCCESS;
 }
 
@@ -241,6 +258,7 @@ long register_ums_scheduler(unsigned int cpuid)
         pid_t pid;
         struct ums_proc *process;
         struct ums_sched *sched;
+        char procfs_buf[8];
 
         pid = current->tgid;
         process = find_ums_proc(pid);
@@ -263,6 +281,16 @@ long register_ums_scheduler(unsigned int cpuid)
 
         process->schedulers[cpuid] = sched;
 
+        // PROCFS stuff
+        sched->sched_data = kmalloc(sizeof(*sched->sched_data), GFP_KERNEL);
+        // Create directory for scheduler /proc/ums/<pid>/schedulers/<id>
+        snprintf(procfs_buf, sizeof(procfs_buf), "%d", cpuid);
+        sched->sched_data->sched_dir = proc_mkdir(procfs_buf, process->proc_data->scheds_dir);
+        // Create workers dir
+        sched->sched_data->workers_dir = proc_mkdir("workers", sched->sched_data->sched_dir);
+        // Create info file (readonly)
+        sched->sched_data->info_file = proc_create("info", 0444, sched->sched_data->sched_dir, &sched_proc_ops);
+
         return SUCCESS;
 }
 
@@ -275,6 +303,7 @@ long register_usr_worker (struct ums_usr_worker *usr_worker)
         struct ums_sched *scheduler;
         struct ums_worker *worker;
         ums_worker_node_t *worker_node;
+        char procfs_buf[8];
 
         // Allocate worker node
         worker_node = kmalloc(sizeof(*worker_node), GFP_KERNEL);
@@ -313,6 +342,10 @@ long register_usr_worker (struct ums_usr_worker *usr_worker)
         // Release write lock on scheduler's worker list.
         write_unlock(&scheduler->lock);
 
+        // PROCFS stuff
+        snprintf(procfs_buf, sizeof(procfs_buf), "%d", worker_node->tid);
+        worker_node->info_file = proc_create(procfs_buf, 0444, scheduler->sched_data->workers_dir, &worker_proc_ops);
+
         return SUCCESS;
 }
 
@@ -322,7 +355,9 @@ long execute_thread (pid_t tid)
         struct ums_proc *process;
         struct ums_sched *scheduler;
         ums_worker_node_t *worker_node;
+        ktime_t start, end;
 
+        start = ktime_get();
         PRINTDBG("Ready to execute thread");
         process = find_ums_proc(current->tgid);
         scheduler = process->schedulers[cpuid];
@@ -355,6 +390,14 @@ long execute_thread (pid_t tid)
         // Perform context switch.
         memcpy(task_pt_regs(scheduler->sched_task), task_pt_regs(worker_node->worker->task), sizeof(struct pt_regs));
 
+        // PROCFS stuff
+        end = ktime_get();
+        scheduler->sched_data->num_switches++;
+        worker_node->worker->worker_data->num_switches++;
+        worker_node->worker->worker_data->start_time = end;
+
+        scheduler->sched_data->last_switch = end - start;
+
         return SUCCESS;
 }
 
@@ -364,10 +407,15 @@ void thread_yield ()
         struct ums_proc *process;
         struct ums_sched *scheduler;
         struct ums_worker *worker;
+        ktime_t start;
 
+        start = ktime_get();
         process = find_ums_proc(current->tgid);
         scheduler = process->schedulers[cpuid];
         worker = scheduler->current_worker;
+
+        // Procfs update scheduler tot_runnning time.
+        worker->worker_data->tot_running += start - worker->worker_data->start_time;
         // update scheduler's current_worker.
         scheduler->current_worker = NULL;
 
@@ -386,6 +434,12 @@ void thread_yield ()
 
         // Wake up process wait queue.
         wake_up_all(&process->wq);
+
+        // PROCFS stuff
+        // end = ktime_get();
+        // scheduler->sched_data->num_switches++;
+        //
+        // scheduler->sched_data->last_switch = end - start;
 
         return;
 }

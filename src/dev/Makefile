@@ -10,7 +10,7 @@ ifeq ($(DEBUG), y)
 endif
 
 obj-m += umsdev.o
-umsdev-objs := ums.o ioctl.o utils.o shared.o
+umsdev-objs := ums.o ioctl.o utils.o shared.o procfs.o
 
 all:
 	$(MAKE) -C $(KDIR) M=$(PWD) modules

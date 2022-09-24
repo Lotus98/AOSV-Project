@@ -11,6 +11,13 @@
 #include <linux/types.h>
 #include <linux/kref.h>
 
+/** @brief Finds a UMS process given its PID.
+ *  @param pid: The pid of the process that holds resources (TGID).
+ *  @return struct ums_proc: The wanted ums_proc struct.
+ *  @return NULL: If the process is not in the UMS processes hashtable.
+ */
+struct ums_proc *find_ums_proc (pid_t pid);
+
 /** @brief Registers the given process in UMS mode.
  *  @param pid: The pid of the process that holds resources (TGID).
  *  @return long: SUCCESS or an error (<0).
