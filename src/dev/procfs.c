@@ -12,6 +12,8 @@
 #include "linux/kernel.h"
 #include "linux/list.h"
 #include "linux/slab.h"
+#include "linux/string.h"
+#include "linux/time.h"
 #include "linux/types.h"
 #include "linux/uaccess.h"
 #include "procfs.h"
@@ -45,18 +47,22 @@ struct proc_dir_entry *init_procfs(void)
 
 ssize_t sched_proc_read (struct file *filp, char __user *buffer, size_t length, loff_t *offset)
 {
-        char *out_buf;
-        struct ums_proc *process;
-        unsigned int cpuid;
-        struct ums_sched *scheduler;
-        struct ums_worker *worker;
-        ssize_t buf_len, leftover;
+        char *out_buf, *tmp_buf;
         pid_t pid;
+        unsigned int cpuid, bkt, cnt_worker = 0;
+        struct ums_proc *process;
+        struct ums_sched *scheduler;
+        ums_worker_node_t *worker_node;
+        struct ums_worker *worker;
+        ssize_t buf_len = 0, leftover = length; // buf_len = The number of bytes written; leftover = The bytes remaining available.
 
         if (*offset < 0) {
                 return -EINVAL;
         }
 
+        // Allocate dynamically the size of the output buffer to be the same as the requested length.
+        out_buf = kmalloc(length, GFP_KERNEL);
+        *out_buf = '\0';
         // Retrieve pid of process
         if (kstrtoint(filp->f_path.dentry->d_parent->d_parent->d_parent->d_iname, 10, &pid) != 0)
                 return FAILURE;
@@ -74,35 +80,56 @@ ssize_t sched_proc_read (struct file *filp, char __user *buffer, size_t length, 
 
         worker = scheduler->current_worker;
         if (!worker) {
-                out_buf = kasprintf(GFP_KERNEL, "Total switches:        \t%lu\n"
+                tmp_buf = kasprintf(GFP_KERNEL, "Total switches:        \t%lu\n"
                                                 "Time last switch:      \t%lldns\n"
-                                                "State:                 \tIdle\n",
+                                                "State:                 \tIdle\n"
+                                                "Completion list:       \t[ ",
                                                 scheduler->sched_data->num_switches,
                                                 scheduler->sched_data->last_switch);
 
         } else {
-                out_buf = kasprintf(GFP_KERNEL, "Total switches:        \t%lu\n"
+                tmp_buf = kasprintf(GFP_KERNEL, "Total switches:        \t%lu\n"
                                                 "Time last switch:      \t%lldns\n"
                                                 "State:                 \tRunning\n"
-                                                "Worker running:        \t%d\n",
+                                                "Running worker:        \t%d\n"
+                                                "Completion list:       \t[ ",
                                                 scheduler->sched_data->num_switches,
                                                 scheduler->sched_data->last_switch,
                                                 worker->task->pid);
         }
-        PRINTDBG("Out buf ready: %s\n", out_buf);
 
-        buf_len = strlen(out_buf);
-        if (*offset >= buf_len || length == 0 || buf_len == 0) {
-                return 0;
+        // Copying the first part of the buffer
+        buf_len = strlcat(out_buf, tmp_buf, length);
+        leftover -= buf_len;
+        kfree(tmp_buf);
+
+        // Writing the completion list
+        hash_for_each(scheduler->worker_list, bkt, worker_node, node) {
+                if (cnt_worker == 5) {
+                        cnt_worker = 0;
+                        tmp_buf = kasprintf(GFP_KERNEL, "%d,\n"
+                                                        "                       \t  ",
+                                                        worker_node->tid);
+                } else {
+                        tmp_buf = kasprintf(GFP_KERNEL, "%d, ", worker_node->tid);
+                }
+                buf_len = strlcat(out_buf, tmp_buf, length);
+                leftover -= buf_len;
+                kfree(tmp_buf);
+                cnt_worker++;
+                if (leftover < 0)
+                        break;
         }
-        if (buf_len > length) {
-                buf_len = length;
+        // Closing bracket of the completion list
+        buf_len = strlcat(out_buf, " ]\n", length);
+
+        if (*offset >= buf_len || length == 0 ) {
+                return 0;
         }
         PRINTDBG("Copying to user\n");
         leftover = copy_to_user(buffer, out_buf, buf_len);
+        *offset = buf_len - leftover;
         PRINTDBG("Done copying to user\n");
-        *offset += buf_len + leftover;
-        kfree(out_buf);
 
         return buf_len - leftover;
 }
@@ -159,7 +186,7 @@ ssize_t worker_proc_read (struct file *filp, char __user *buffer, size_t length,
                 buf_len = length;
         }
         leftover = copy_to_user(buffer, out_buf, buf_len);
-        *offset += buf_len + leftover;
+        *offset += buf_len - leftover;
         kfree(out_buf);
 
         return buf_len - leftover;

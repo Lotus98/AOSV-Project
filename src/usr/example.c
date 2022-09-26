@@ -73,7 +73,6 @@ int main (void)
 
         // Terminate UMS session
         puts("Waiting for session to terminate");
-        sleep(30);
         ums_destroy();
         puts("Session terminated correctly");
 

@@ -12,10 +12,12 @@
 #include "linux/hashtable.h"
 #include "linux/list.h"
 #include "linux/proc_fs.h"
+#include "linux/types.h"
 #include "procfs.h"
 #include "shared.h"
 #include "ioctl.h"
 #include "utils.h"
+#include <linux/hashtable.h>
 
 static const struct file_operations ums_fops = {
         .owner = THIS_MODULE,
@@ -56,11 +58,13 @@ static int __init init_umsmodule(void)
 static void __exit exit_umsmodule(void)
 {
         struct ums_proc *process;
+        struct hlist_node *tmp;
+        int bkt;
 
         proc_remove(procfs_base_dir);
         // Cleanup
-        hlist_for_each_entry(process, ums_procs, node) {
-                terminate_ums_process(process->pid);
+        hash_for_each_safe(ums_procs, bkt, tmp, process, node) {
+                cleanup_process(process);
         }
 
         misc_deregister(&ums_misc_dev);

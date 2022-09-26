@@ -163,6 +163,34 @@ long terminate_ums_process (pid_t pid)
         if (!process) // The process is not registered
                 return -ESRCH;
 
+        // For each scheduler: release the kref for the workers
+        for (int i = 0; i < ncpus; i++) {
+                struct ums_sched *sched = process->schedulers[i];
+                if (!sched) // There is no scheduler registered for that CPU.
+                        continue;
+                hash_for_each_safe(sched->worker_list, bkt, tmp, worker_node, node) {
+                        kref_put(&worker_node->worker->refcnt, worker_release);
+                }
+        }
+
+        // Wake up dangling workers
+        hash_for_each_safe(process->workers, bkt, tmp, worker_node, node) {
+                // Cleanup any dangling worker.
+                if (worker_node->worker->state != WORKER_TERMINATED) {
+                        PRINTDBG("Waking up worker[TID]: %d", worker_node->tid);
+                        wake_up_process(worker_node->worker->task);
+                }
+        }
+
+        return SUCCESS;
+}
+
+long cleanup_process (struct ums_proc *process)
+{
+        ums_worker_node_t *worker_node;
+        struct hlist_node *tmp;
+        int bkt;
+
         // Remove node from the hashtable
         hash_del(&process->node);
 
@@ -174,25 +202,22 @@ long terminate_ums_process (pid_t pid)
                 if (!sched) // There is no scheduler registered for that CPU.
                         continue;
                 hash_for_each_safe(sched->worker_list, bkt, tmp, worker_node, node) {
-                        kref_put(&worker_node->worker->refcnt, worker_release);
                         hash_del(&worker_node->node);
                         kfree(worker_node);
                 }
+                // Free scheduler's proc_data
+                kfree(sched->sched_data);
                 // Free scheduler data struct.
                 kfree(sched);
         }
 
         // Clear the worker hashtable saved in the ums_proc struct (no need to lock, this is the last thread)
         hash_for_each_safe(process->workers, bkt, tmp, worker_node, node) {
-                // Cleanup any dangling worker.
-                if (worker_node->worker->state != WORKER_TERMINATED) {
-                        PRINTDBG("Waking up worker[TID]: %d", worker_node->tid);
-                        wake_up_process(worker_node->worker->task);
-                }
                 kref_put(&worker_node->worker->refcnt, worker_release); // This is the one freeing the ums_worker
                 hash_del(&worker_node->node);
                 kfree(worker_node);
         }
+        kfree(process->proc_data);
         kfree(process);
 
         return SUCCESS;
@@ -201,6 +226,7 @@ long terminate_ums_process (pid_t pid)
 void worker_release (struct kref *refcnt)
 {
         struct ums_worker *worker = container_of(refcnt, struct ums_worker, refcnt);
+        kfree(worker->worker_data);
         kfree(worker);
 
         return;

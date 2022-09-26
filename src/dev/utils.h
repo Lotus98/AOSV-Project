@@ -30,6 +30,12 @@ long register_ums_process (pid_t pid);
  */
 long terminate_ums_process (pid_t pid);
 
+/** @brief Cleanup the data structures used by a process.
+ *  @param process: The struct ums_proc representing the process to cleanup.
+ *  @return long: SUCCESS or an error (<0).
+ */
+long cleanup_process (struct ums_proc *process);
+
 /** @brief Initializes a worker node and saves it in the given process hashtable.
  *
  *  This function allocates the necessary data structures to represent a UMS worker
