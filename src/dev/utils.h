@@ -8,31 +8,29 @@
 #define DEV_UTILS_H
 
 #include "shared.h"
-#include <linux/types.h>
-#include <linux/kref.h>
 
 /** @brief Finds a UMS process given its PID.
  *  @param pid: The pid of the process that holds resources (TGID).
  *  @return struct ums_proc: The wanted ums_proc struct.
- *  @return NULL: If the process is not in the UMS processes hashtable.
+ *  @return A pointer to a struct ums_proc or NULL if the process is not in the UMS processes hashtable.
  */
 struct ums_proc *find_ums_proc (pid_t pid);
 
 /** @brief Registers the given process in UMS mode.
  *  @param pid: The pid of the process that holds resources (TGID).
- *  @return long: SUCCESS or an error (<0).
+ *  @return SUCCESS or an error (<0).
  */
 long register_ums_process (pid_t pid);
 
 /** @brief Unregisters the given process in UMS mode.
  *  @param pid: The pid of the process that holds resources (TGID).
- *  @return long: SUCCESS or an error (<0).
+ *  @return SUCCESS or an error (<0).
  */
 long terminate_ums_process (pid_t pid);
 
 /** @brief Cleanup the data structures used by a process.
  *  @param process: The struct ums_proc representing the process to cleanup.
- *  @return long: SUCCESS or an error (<0).
+ *  @return SUCCESS or an error (<0).
  */
 long cleanup_process (struct ums_proc *process);
 
@@ -41,7 +39,7 @@ long cleanup_process (struct ums_proc *process);
  *  This function allocates the necessary data structures to represent a UMS worker
  *  and inserts it in the hashtable of the given process.
  *
- *  @return long: SUCCESS or an error (<0).
+ *  @return SUCCESS or an error (<0).
  */
 long init_worker_node (void);
 
@@ -51,13 +49,13 @@ long init_worker_node (void);
  *  it according to the function's parameters.
  *
  *  @param cpuid: The ID of the CPU on top of which the scheduler thread will run.
- *  @return long: SUCCESS or an error (<0).
+ *  @return SUCCESS or an error (<0).
  */
 long register_ums_scheduler (unsigned int cpuid);
 
 /** @brief Registers a worker thread on a specified scheduler's worker list.
  *  @param usr_worker: The worker's informations.
- *  @return long: SUCCESS or an error (<0).
+ *  @return SUCCESS or an error (<0).
  */
 long register_usr_worker (struct ums_usr_worker *usr_worker);
 
@@ -67,7 +65,7 @@ long register_usr_worker (struct ums_usr_worker *usr_worker);
  *  their pt_regs. This allows the scheduler's to effectively host the thread's execution.
  *
  *  @param tid: The PID of the worker to be executed.
- *  @return long: SUCCESS or an error (<0).
+ *  @return SUCCESS or an error (<0).
  */
 long execute_thread (pid_t tid);
 

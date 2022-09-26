@@ -1,23 +1,14 @@
 /**
  *  @file procfs.c
- *  @brief File containing the functions and definitions needed to instantiate the procfs UMS data.
+ *  @brief Implementation of the ProcFS interface related to the UMS driver.
+ *
+ *  This file contains the functions and implementations to manage the Proc filesystem
+ *  and expose the statistical data about the UMS driver.
+ *
  *  @author Nalin Dhingra (Lotus98)
  *  @bug No known bugs.
  */
-#include <linux/proc_fs.h>
-#include "asm-generic/errno-base.h"
-#include "asm/string_64.h"
-#include "linux/gfp.h"
-#include "linux/hashtable.h"
-#include "linux/kernel.h"
-#include "linux/list.h"
-#include "linux/slab.h"
-#include "linux/string.h"
-#include "linux/time.h"
-#include "linux/types.h"
-#include "linux/uaccess.h"
 #include "procfs.h"
-#include "shared.h"
 #include "utils.h"
 
 struct proc_dir_entry *procfs_base_dir;
@@ -31,6 +22,8 @@ static char *worker_state_to_str (enum state state)
                         return "Idle";
                 case WORKER_TERMINATED:
                         return "Terminated";
+                case WORKER_SCHEDULED:
+                        return "Scheduled";
                 default:
                         return NULL;
         }

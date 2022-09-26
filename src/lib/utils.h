@@ -1,8 +1,8 @@
 /** @file utils.h
  *  @brief All helper functions for ums library.
  *
- *  This file contains the headers for the helper functions and data structures
- *  needed for the UMS library.
+ *  This file contains the declarations of the functions and data structures
+ *  needed by the main UMS library.
  *
  *  @author Nalin Dhingra (Lotus98)
  *  @bug No known bugs.
@@ -12,16 +12,11 @@
 
 // Includes
 #include "shared.h"
-#include <fcntl.h>
-#include <sys/ioctl.h>
-
-// Macros
 
 
 // Prototypes
 /** @brief Opens the driver's device.
- *
- *  @return int Returns a file descriptor to the open device.
+ *  @return int Returns a file descriptor to the open device or the relative error, if it could not open it.
  */
 int open_device (void);
 
@@ -42,22 +37,21 @@ void *sched_wrap_routine (void *arg);
 
 /** @brief Finds the first occurence of a bit set to 0 in a bitmap.
  *  @param map: The target bitmap.
- *  @param size: The size of the bitmap
- *  @return int: The index (starting from 0) of the wanted bit or -1 if none were found.
+ *  @param size: The size of the bitmap.
+ *  @return The index (starting from 0) of the wanted bit or -1 if none were found.
  */
 int find_next_zero_bit(unsigned long *map, size_t size);
 
 /** @brief Finds the worker node corresponding to the given tid.
  *  @param head: The head of the list to search.
  *  @param tid: The tid of the worker to be found.
- *  @return NULL: If there is no worker with such tid.
- *  @return ums_worker_node_t *: The wanted worker.
+ *  @return A pointer to the wanted worker or NULL If there is no worker with such tid.
  */
 struct ums_worker *find_worker_tid (struct list_head *head, pid_t tid);
 
 /** @brief Duplicates the given completion list.
  *  @param head: The head of the original list that needs to be duplicated.
- *  @return struct list_head *: The new head of the duplicate.
+ *  @return A pointer to the new head of the duplicated completion list.
  */
 struct list_head *dup_worker_list (struct list_head *head);
 

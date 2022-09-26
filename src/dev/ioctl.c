@@ -1,19 +1,13 @@
 /**
  *  @file ioctl.c
- *  @brief Ioctl commands to interact with the device.
+ *  @brief IOCTL API to interact with the UMS device.
  *
- *  This file contains all the functions corresponding to the commands used to
- *  interact with the device through the ioctl interface.
+ *  This file exposes the IOCTL API to make use of the functionalities of UMS in userspace.
  *
  *  @author Nalin Dhingra (Lotus98)
  *  @bug No known bugs.
  */
-#include "asm-generic/errno-base.h"
-#include "asm/current.h"
-#include "linux/gfp.h"
-#include "linux/slab.h"
-#include "linux/types.h"
-#include "linux/uaccess.h"
+#include <linux/uaccess.h>
 #include "shared.h"
 #include "ioctl.h"
 #include "utils.h"

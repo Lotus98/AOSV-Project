@@ -7,17 +7,10 @@
  *  @bug No known bugs.
  */
 #include <linux/module.h>
-#include <linux/fs.h>
 #include <linux/miscdevice.h>
-#include "linux/hashtable.h"
-#include "linux/list.h"
-#include "linux/proc_fs.h"
-#include "linux/types.h"
 #include "procfs.h"
-#include "shared.h"
 #include "ioctl.h"
 #include "utils.h"
-#include <linux/hashtable.h>
 
 static const struct file_operations ums_fops = {
         .owner = THIS_MODULE,

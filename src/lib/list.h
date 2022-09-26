@@ -1,7 +1,9 @@
 /** @file list.h
  *  @brief Implementation for linked lists like in the Linux Kernel.
  *
- *  @author Nalin Dhingra (Lotus98)
+ *  This file contains and implementation of the linked lists used in the Linux Kernel
+ *  replicated to work in userspace.
+ *
  *  @bug No known bugs.
  */
 #ifndef LIB_LIST_H

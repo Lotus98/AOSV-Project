@@ -10,19 +10,10 @@
 #ifndef DEV_SHARED_H
 #define DEV_SHARED_H
 
-#include "asm/ptrace.h"
-#include "linux/ktime.h"
-#include "linux/proc_fs.h"
-#include "linux/spinlock_types.h"
-#include <asm-generic/errno.h>
-#include <linux/printk.h>
-#include <linux/sched.h>
 #include <linux/hashtable.h>
+#include <linux/sched.h>
 #include <linux/kref.h>
-#include <linux/types.h>
-#include <linux/rwlock_types.h>
-#include <linux/cpumask.h>
-#include <linux/wait.h>
+#include <linux/slab.h>
 
 
 #define DEVICE_NAME "umsdev" ///< The device name in "/dev".
@@ -33,8 +24,8 @@
 
 #define HBITS 8 ///< "bits" used by a general hashtable (8 = 256 entries).
 
-// Worker states
-enum state {WORKER_RUNNING, WORKER_IDLE, WORKER_TERMINATED};
+/// Representation of the possible states a UMS worker can be in.
+enum state {WORKER_RUNNING, WORKER_IDLE, WORKER_TERMINATED, WORKER_SCHEDULED};
 
 // #ifndef PRINTDBG
 #define PRINTDBG(fmt, args...) pr_debug(LOG_MSG "CPU[%d]" fmt "\n", current->cpu, ##args)
@@ -42,10 +33,10 @@ enum state {WORKER_RUNNING, WORKER_IDLE, WORKER_TERMINATED};
 
 
 // Data structures needed for the functioning of the module.
-/// Defines the components that identify a process using UMS.
+/// Structure defining the components that identify a process that is using the UMS driver.
 struct ums_proc {
-        struct ums_sched **schedulers; ///< An array of pointers representing all the active scheduler threads.
-        struct hlist_node node; ///< Node for the bucket in the processes hashtable.
+        struct ums_sched **schedulers; ///< An array of pointers to all the active scheduler threads.
+        struct hlist_node node; ///< Node element for placing the process in the global hashtable.
         pid_t pid; ///< The process PID.
         /*  An hashtable containing all the workers registered by a process.
          *  This is used to allow faster and more efficient lookup of shared workers.
@@ -53,53 +44,49 @@ struct ums_proc {
          *  we are just holding a double copy of a ums_worker_node_t which is relatively
          *  small.
          */
-        DECLARE_HASHTABLE(workers, HBITS); ///< Hashtable of all workers registered by a process.
-        rwlock_t hash_lock; ///< lock used to access the workers hashtable.
-        /** The waitqueue may be used by scheduler threads calling DequeueUmsCompletionListItems.
+        DECLARE_HASHTABLE(workers, HBITS); ///< Hashtable of all workers initilized by a process.
+        rwlock_t hash_lock; ///< Lock used to access the workers hashtable.
+        /* The waitqueue may be used by scheduler threads calling DequeueUmsCompletionListItems.
          *  In fact there might not be available workers, becuase they might be running
          *  on a different scheduler thread, therefore the call should be blocking.
          *  We achieve this by waiting for the condition on which every worker on
          *  a scheduler's list is terminated or there is an idle one.
          */
-        wait_queue_head_t wq;
+        wait_queue_head_t wq; ///< A wait queue used to implement the blocking call DequeueUmsCompletionListItems.
         struct procfs_proc_umsdata *proc_data; ///< The procfs data relative to the process.
 };
 
-/// Defines a scheduler thread.
+/// Structure defining a scheduler thread in UMS mode.
 struct ums_sched {
         struct task_struct *sched_task; ///< The task_struct of the scheduler thread.
         struct ums_worker *current_worker; ///< The worker currently running on the scheduler context, NULL if none.
-        struct pt_regs sched_regs; ///< Backup of the scheduler's state, used in the context switch.
+        struct pt_regs sched_regs; ///< Backup of the scheduler's state, used to implement the context switch.
         DECLARE_HASHTABLE(worker_list, HBITS); ///< The completion list (implemented as an hashtable).
-        rwlock_t lock; ///< Lock for the hashtable.
-        struct procfs_sched_umsdata *sched_data; ///< The procfs data of the scheduler.
+        rwlock_t lock; ///< Lock used to access the hashtable.
+        struct procfs_sched_umsdata *sched_data; ///< The procfs data related to the scheduler.
 };
 
-/// Defines a worker thread.
+/// Structure defining a worker thread.
 struct ums_worker {
-        struct task_struct *task; ///< The task_struct of the thread.
-        enum state state; ///< The current state of the worker.
-        bool scheduled; ///< A boolean stating if the worker is already dequeued and ready to be executed by a scheduler.
+        struct task_struct *task; ///< The task_struct of the worker thread.
+        enum state state; ///< The current state of the worker. (IDLE, TERMINATED, SCHEDULED, RUNNING)
         struct kref refcnt; ///< Reference counter for the worker.
         rwlock_t rwlock; ///< Lock used to keep coherent the state of a worker.
         struct procfs_worker_umsdata *worker_data; ///< The procfs data of the worker.
 };
 
-/// Defines an hashtable node representing a worker.
+/// Structure used to hold a shared worker in a hashtable.
 typedef struct ums_worker_node {
         struct ums_worker *worker;
-        pid_t tid; ///< The key for hashtables. Provides also quicker access to worker TID.
-        struct hlist_node node; ///< The node of the hashtable's bucket.
-        /** The file entry containing worker informations. It is different for every scheduler but has the same
-         *  data depending on the worker.
-         */
-        struct proc_dir_entry *info_file;
+        pid_t tid; ///< The PID of the worker thread. It is used as a key for the hashtable.
+        struct hlist_node node; ///< Node element for placing the worker in a hashtable.
+        struct proc_dir_entry *info_file; ///< The directory entry that represents the node in ProcFS.
 } ums_worker_node_t;
 
-/// Defines a tuple used to send worker thread registration informations to the LKM.
+/// Structure defining a tuple used to hold registration information about a worker.
 struct ums_usr_worker {
         unsigned int cpuid; ///< The cpuid related to the scheduler on which we are registering the worker.
-        pid_t tid; ///< The TID of the target worker.
+        pid_t tid; ///< The PID of the worker thread.
 };
 
 // Data structures needed to manage the procfs components.
@@ -127,7 +114,7 @@ struct procfs_worker_umsdata {
 
 
 // Global variables
-extern DECLARE_HASHTABLE(ums_procs, HBITS); ///< Hashtable to keep all the processes that are in UMS mode.
+extern DECLARE_HASHTABLE(ums_procs, HBITS); ///< Hashtable to keep all the processes that are registered in UMS mode.
 extern int ncpus; ///< The number of online CPUs in the system.
 
 

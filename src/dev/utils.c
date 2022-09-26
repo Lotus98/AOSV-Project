@@ -4,34 +4,9 @@
  *  @author Nalin Dhingra (Lotus98)
  *  @bug No known bugs.
  */
-#include "procfs.h"
-#include "utils.h"
-#include "shared.h"
-#include "asm-generic/errno-base.h"
-#include "asm-generic/errno.h"
-#include "asm/current.h"
-#include "asm/processor.h"
-#include "asm/ptrace.h"
-#include "asm/string_64.h"
-#include "linux/fs.h"
-#include "linux/gfp.h"
-#include "linux/hashtable.h"
-#include "linux/kernel.h"
-#include "linux/kref.h"
-#include "linux/list.h"
-#include "linux/lockdep.h"
-#include "linux/pid.h"
-#include "linux/printk.h"
-#include "linux/proc_fs.h"
-#include "linux/sched.h"
-#include "linux/spinlock.h"
-#include "linux/stddef.h"
-#include "linux/types.h"
-#include "linux/wait.h"
-#include <linux/slab.h>
-#include <linux/sched/task.h>
 #include <linux/sched/task_stack.h>
-#include <linux/timekeeping.h>
+#include "utils.h"
+#include "procfs.h"
 
 static const struct proc_ops sched_proc_ops = {
         .proc_read = sched_proc_read,
@@ -94,11 +69,11 @@ static bool wait_queue_check (void)
         // Check if there are idle workers
         hash_for_each(sched->worker_list, bkt, worker_node, node) {
                 read_lock(&worker_node->worker->rwlock);
-                if (worker_node->worker->state == WORKER_IDLE && !worker_node->worker->scheduled) {
+                if (worker_node->worker->state == WORKER_IDLE) {
                         read_unlock(&worker_node->worker->rwlock);
                         return true;
                 }
-                if (worker_node->worker->state == WORKER_RUNNING)
+                if ( (worker_node->worker->state == WORKER_RUNNING || worker_node->worker->state == WORKER_SCHEDULED) && terminated)
                         terminated = false;
                 read_unlock(&worker_node->worker->rwlock);
         }
@@ -254,7 +229,6 @@ long init_worker_node (void)
         task = current;
         worker->task = task;
         worker->state = WORKER_IDLE;
-        worker->scheduled = false;
         rwlock_init(&worker->rwlock);
         kref_init(&worker->refcnt);
 
@@ -400,7 +374,7 @@ long execute_thread (pid_t tid)
 
         // Acquire rwlock on worker.
         write_lock(&worker_node->worker->rwlock);
-        if (worker_node->worker->state != WORKER_IDLE) {
+        if (worker_node->worker->state != WORKER_SCHEDULED) {
                 write_unlock(&worker_node->worker->rwlock);
                 return -EBUSY;
         }
@@ -454,7 +428,6 @@ void thread_yield ()
         write_lock(&worker->rwlock);
         // Change state
         worker->state = WORKER_IDLE;
-        worker->scheduled = false;
         // Release worker lock.
         write_unlock(&worker->rwlock);
 
@@ -494,11 +467,11 @@ void dequeue_list (size_t size, unsigned int *tid_list)
                                 break;
                         }
                         write_lock(&worker_node->worker->rwlock);
-                        if (worker_node->worker->state == WORKER_RUNNING && terminated)
+                        if ( (worker_node->worker->state == WORKER_RUNNING || worker_node->worker->state == WORKER_SCHEDULED) && terminated)
                                 terminated = false;
-                        else if (worker_node->worker->state == WORKER_IDLE && !worker_node->worker->scheduled) {
+                        else if (worker_node->worker->state == WORKER_IDLE) {
                                 PRINTDBG("Found worker to put in queue: [TID]: %d", worker_node->tid);
-                                worker_node->worker->scheduled = true;
+                                worker_node->worker->state = WORKER_SCHEDULED;
                                 tid_list[++tid_list[0]] = worker_node->tid;
                         }
                         write_unlock(&worker_node->worker->rwlock);
@@ -535,7 +508,6 @@ void terminate_worker (void)
         write_lock(&worker->rwlock);
         // Change state
         worker->state = WORKER_TERMINATED;
-        worker->scheduled = false;
         // Release worker lock.
         write_unlock(&worker->rwlock);
 

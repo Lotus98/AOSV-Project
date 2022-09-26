@@ -15,16 +15,12 @@
 /// @endcond
 
 // Includes
-#include <asm-generic/errno-base.h>
-#include <semaphore.h>
 #include <pthread.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
-#include <fcntl.h>
+#include <semaphore.h>
+#include <sys/ioctl.h>
 #include <sched.h>
 #include <stdio.h>
+#include <unistd.h>
 #include "bitmap.h"
 #include "list.h"
 
@@ -32,7 +28,7 @@
 // Defines
 #define SUCCESS 0
 #define FAILURE -1
-#define DRIVER_PATH "/dev/umsdev" ///< File path of the IOCTL device.
+#define DRIVER_PATH "/dev/umsdev" ///< File path of the IOCTL driver.
 
 #undef PRINTDBG
 #ifdef DEBUG
@@ -45,13 +41,13 @@
 enum state {WORKER_RUNNING, WORKER_IDLE, WORKER_TERMINATED};
 
 // IOCTL commands
-#define INIT_WORKER _IO(0x1337, 'a') ///< Set state of the calling thread to TASK_IDLE.
-#define REGISTER_PROC _IO(0x1337, 'b') ///< Register a process to be in UMS mode.
-#define TERMINATE_PROC _IO(0x1337, 'c') ///< Unregister a process that is in UMS mode.
+#define INIT_WORKER _IO(0x1337, 'a') ///< Command to initialize the thread of the calling worker in UMS mode.
+#define REGISTER_PROC _IO(0x1337, 'b') ///< Command to register a process to be in UMS mode.
+#define TERMINATE_PROC _IO(0x1337, 'c') ///< Command to unregister a process that is in UMS mode.
 #define REGISTER_SCHED _IOW(0x1337, 'd', unsigned int) ///< Command to register a scheduler thread.
 #define REGISTER_WORKER _IOW(0x1337, 'e', struct ums_usr_worker) ///< Command to register a worker to a precise scheduler.
 #define EXECUTE_THREAD _IOW(0x1337, 'f', pid_t) ///< Command to execute a ums worker.
-#define THREAD_YIELD _IO(0x1337, 'g') ///< Command to yield the calling thread.
+#define THREAD_YIELD _IO(0x1337, 'g') ///< Command to yield the calling worker thread.
 #define DEQUEUE_LIST _IOWR(0x1337, 'h', int) ///< Command to get the list of available workers.
 #define TERMINATE_WORKER _IO(0x1337, 'i') ///< Command to terminate a running worker and restore the scheduler hosting it.
 
@@ -65,15 +61,14 @@ struct ums_thread {
 
 /// Structure used to wrap the arguments of pthread_create within ums_worker_create.
 struct ums_worker_arg {
-        /// The reference to the struct ums_thread corresponding to the worker.
-        struct ums_thread *ums_thread;
+        struct ums_thread *ums_thread; ///< The corresponding UMS specific thread.
         void (*ums_routine) (void *); ///< The routine passed to ums_worker_create.
         void *arg; ///< The argument passed to ums_worker_create.
-        sem_t *tid_sem; ///< Semaphore used to coordinate ums_thread->tid population.
+        sem_t *tid_sem; ///< Semaphore used to coordinate the assignment of the TID in the struct ums_thread.
 };
 
 struct ums_sched_arg {
-        struct ums_thread *ums_thread;
+        struct ums_thread *ums_thread; ///< The UMS thread corresponding to the scheduler thread.
         void (*sched_routine) (void); ///< The scheduler function.
         struct list_head *list; /// The head of the completion list.
         unsigned int cpuid; ///< The CPU to which the thread will be bound.
@@ -82,39 +77,39 @@ struct ums_sched_arg {
 
 /// Structure defining a worker.
 struct ums_worker {
-        struct ums_thread thread; ///< Corresponding thread.
+        struct ums_thread thread; ///< The corresponding UMS thread.
         unsigned long refcnt; ///< Reference counter, used to keep track of how many lists contain this worker.
         enum state state; ///< The state of the worker.
         pthread_mutex_t mutex; ///< Mutex to keep the worker's state coherent as well as the refcnt.
 };
 
+/// Structure used as a wrapper to have multiple nodes sharing the same worker.
 typedef struct ums_worker_node {
         struct ums_worker *worker; ///< Worker assigned to the node.
-        struct list_head list; ///< struct list pointers.
+        struct list_head list; ///< The member used to insert the node in a list.
 } ums_worker_node_t;
 
-/// Structure to define a scheduler thread and its context.
+/// Structure defining a scheduler thread and its context.
 struct ums_sched {
-        struct ums_thread *ums_thread; ///< The ums_thread related to the scheduler.
+        struct ums_thread *ums_thread; ///< The UMS thread related to the scheduler.
         struct ums_worker *current_worker; ///< The worker currently executing in the scheduler's context.
-        unsigned int cpuid; ///< The id of the assigned CPU. NOTE NOT USED
         unsigned int nworkers; ///< The total number of workers in the worker_list.
-        struct list_head *worker_list;
+        struct list_head *worker_list; ///< The completion list assigned to the scheduler.
 };
 
-/// Defines a tuple used to send worker thread registration informations to the LKM.
+/// Structure defining a tuple used to send worker thread registration informations to the UMS driver.
 struct ums_usr_worker {
-        unsigned int cpuid; ///< The cpuid related to the scheduler on which we are registering the worker.
+        unsigned int cpuid; ///< The cpuid of the scheduler on which we are registering the worker.
         pid_t tid; ///< The TID of the target worker.
 };
 
 
 // Global variables
-int dev_fd; ///< The file descriptor of "/dev/umsdev"
-size_t ncpus; ///< The number of available CPUs in the system
-// No concurrency on the write for the cpus_map since only the main thread will create new schedulers
+int dev_fd; ///< The file descriptor of "/dev/umsdev".
+size_t ncpus; ///< The number of available CPUs in the system.
+// No concurrency on the write for the cpus_map since only the main thread will create new schedulers.
 bitmap_t cpus_map; ///< A bitmap representing the state of the CPUs in the UMS context of this process.
 struct ums_sched **ums_schedulers; ///< An array of pointers to the schedulers in use.
-struct list_head global_list;
+struct list_head global_list; ///< A list containing all the created UMS workers in the process context.
 
 #endif // !LIB_SHARED_H

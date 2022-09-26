@@ -1,28 +1,14 @@
 /** @file ums.c
- *  @brief Contains the main functions for the UMS library.
- *
- *  Contains the implementations of the main functions to be used by the user
- *  applications when using UMS
- *
+ *  @brief Implements the main user API to use the funtionalities of the UMS driver.
  *  @author Nalin Dhingra (Lotus98)
  *  @bug No known bugs.
  */
 
-#include "list.h"
-#include "shared.h"
-#include "bitmap.h"
 #include "ums.h"
+#include "shared.h"
 #include "utils.h"
-
-#include <asm-generic/errno-base.h>
-#include <fcntl.h>
-#include <pthread.h>
-#include <semaphore.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/ioctl.h>
 #include <sys/sysinfo.h>
-#include <unistd.h>
+#include <errno.h>
 
 int ums_init ()
 {
@@ -211,7 +197,6 @@ int EnterUmsSchedulingMode(void (*scheduler_routine)(), struct list_head *worker
                 perror("Allocating struct ums_sched for requested scheduler");
                 return FAILURE;
         }
-        ums_schedulers[cpuid]->cpuid = (unsigned int)cpuid;
         ums_schedulers[cpuid]->ums_thread = malloc(sizeof(*ums_schedulers[cpuid]->ums_thread));
         if (!ums_schedulers[cpuid]->ums_thread) {
                 perror("Allocating struct ums_thread for scheduler");

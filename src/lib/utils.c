@@ -4,15 +4,10 @@
  *  @author Nalin Dhingra (Lotus98)
  *  @bug No known bugs.
  */
-#include "utils.h"
-#include "list.h"
-#include "shared.h"
 #include "ums.h"
-#include <pthread.h>
-#include <sched.h>
-#include <stdio.h>
+#include "utils.h"
 #include <stdlib.h>
-#include <sys/ioctl.h>
+#include <fcntl.h>
 
 static void bind_to_cpu(unsigned int cpuid) {
         cpu_set_t *cpusetp;
