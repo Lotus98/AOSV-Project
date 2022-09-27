@@ -1,5 +1,4 @@
 CC = gcc
-TARGET = app
 
 # Comment to disable/enable debugging
 DEBUG = y
@@ -18,11 +17,14 @@ SRC_DIRS = ./
 LDIR = ../lib
 LIB = ums
 
-SRCS := $(shell find $(SRC_DIRS) -name *.c)
+SRCS := $(shell find $(SRC_DIRS) -name "*.c")
 OBJS := $(SRCS:./%.c=$(BUILD_DIR)/%.o)
+TARGETS := $(OBJS:./%.o=%)
 
-$(BUILD_DIR)/$(TARGET): $(OBJS)
-	$(CC) $(LDFLAGS) $^ -L $(LDIR) -l$(LIB) -o $@
+all: $(TARGETS)
+
+%: %.o
+	$(CC) $(LDFLAGS) $< -L $(LDIR) -l$(LIB) -o $@
 
 # c source
 $(BUILD_DIR)/%.o: %.c

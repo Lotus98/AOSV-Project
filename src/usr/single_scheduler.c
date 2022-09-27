@@ -6,7 +6,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#define WORKERS 5
+#define WORKERS 128
 
 void fun ()
 {
@@ -68,7 +68,6 @@ int main (void)
 
         // Starting scheduler
         puts("Starting scheduler");
-        EnterUmsSchedulingMode(sched_fun, &head);
         EnterUmsSchedulingMode(sched_fun, &head);
 
         // Terminate UMS session
